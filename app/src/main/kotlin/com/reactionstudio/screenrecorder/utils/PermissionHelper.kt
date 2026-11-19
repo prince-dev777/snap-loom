@@ -81,4 +81,26 @@ object PermissionHelper {
         val m = Build.MANUFACTURER.lowercase()
         return m.contains("xiaomi") || m.contains("redmi") || m.contains("poco")
     }
+
+    fun openXiaomiOtherPermissions(context: Context): Boolean {
+        return try {
+            val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.permissions.PermissionsEditorActivity"
+                )
+                putExtra("extra_pkgname", context.packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            try {
+                context.startActivity(openAppSettingsIntent(context))
+                true
+            } catch (e2: Exception) {
+                false
+            }
+        }
+    }
 }

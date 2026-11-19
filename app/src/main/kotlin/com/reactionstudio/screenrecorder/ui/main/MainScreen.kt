@@ -335,7 +335,10 @@ fun StudioHomeTab(
             onOpenAppInfo = {
                 context.startActivity(PermissionHelper.openAppSettingsIntent(context))
             },
-            onOpenOverlay = onOpenOverlaySettings
+            onOpenOverlay = onOpenOverlaySettings,
+            onOpenXiaomiOtherPerms = {
+                PermissionHelper.openXiaomiOtherPermissions(context)
+            }
         )
     }
 
@@ -1051,8 +1054,12 @@ fun VipTimerBadge(context: Context) {
 fun RestrictedSettingsDialog(
     onDismiss: () -> Unit,
     onOpenAppInfo: () -> Unit,
-    onOpenOverlay: () -> Unit
+    onOpenOverlay: () -> Unit,
+    onOpenXiaomiOtherPerms: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isXiaomi = remember { PermissionHelper.isXiaomiOrPoco() }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1065,13 +1072,13 @@ fun RestrictedSettingsDialog(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
-                Text("Fix 'Denied Access' Setting")
+                Text("Fix 'Denied Access' (HyperOS)")
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Xiaomi (HyperOS) aur Android 13/14/15 me sideloaded apps ke liye Overlay aur Camera restricted mode me rehta hai.",
+                    text = "Xiaomi (HyperOS) me sideloaded apps ke liye Overlay aur Pop-up windows locked rehte hain.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
@@ -1088,28 +1095,48 @@ fun RestrictedSettingsDialog(
                         .padding(10.dp)
                 ) {
                     Text("1️⃣ Neeche '1. Open App Info' button dabayein.", style = MaterialTheme.typography.bodySmall)
-                    Text("2️⃣ Top-right corner me 3-Dots (⋮) par tap karein.", style = MaterialTheme.typography.bodySmall)
-                    Text("3️⃣ 'Allow restricted settings' choose karein aur Fingerprint/PIN lagayein.", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    Text("4️⃣ 'Permissions' me jaakar Camera aur Mic ko Allow karein.", style = MaterialTheme.typography.bodySmall)
-                    Text("5️⃣ Phir '2. Open Overlay' se Snap Loom ko ON karein.", style = MaterialTheme.typography.bodySmall)
+                    Text("2️⃣ Top-right me 3-Dots (⋮) par tap karein. Agar 3-dots na mile, toh screen ke bilkul NEECHE (Bottom) scroll karein.", style = MaterialTheme.typography.bodySmall)
+                    Text("3️⃣ 'Allow restricted settings' (प्रतिबंधित सेटिंग्स) par tap karke Fingerprint/PIN confirm karein.", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("4️⃣ '2. Open Overlay' se Snap Loom ko ON karein.", style = MaterialTheme.typography.bodySmall)
+                    if (isXiaomi) {
+                        Text("5️⃣ Xiaomi 'Other Permissions' me 'Display pop-up windows in background' ko Allow karein.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = {
-                onOpenAppInfo()
-                onDismiss()
-            }) {
-                Text("1. Open App Info (3-Dots ⋮)")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        onOpenAppInfo()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("1. Open App Info (Allow Restricted)")
+                }
+                OutlinedButton(
+                    onClick = {
+                        onOpenOverlay()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("2. Open Overlay Settings")
+                }
+                if (isXiaomi) {
+                    OutlinedButton(
+                        onClick = {
+                            onOpenXiaomiOtherPerms()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("3. Xiaomi Pop-up Permissions")
+                    }
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(onClick = {
-                onOpenOverlay()
-                onDismiss()
-            }) {
-                Text("2. Open Overlay")
-            }
-        }
+        dismissButton = {}
     )
 }

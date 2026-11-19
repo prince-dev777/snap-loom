@@ -22,7 +22,9 @@ import com.reactionstudio.screenrecorder.model.VideoBitrate
 import com.reactionstudio.screenrecorder.model.VideoFps
 import com.reactionstudio.screenrecorder.model.VideoResolution
 import com.reactionstudio.screenrecorder.service.ScreenRecordService
+import com.reactionstudio.screenrecorder.utils.AppUpdateManager
 import com.reactionstudio.screenrecorder.utils.PermissionHelper
+import com.reactionstudio.screenrecorder.utils.UpdateInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,8 +50,43 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    private val _updateFeedback = MutableStateFlow<String?>(null)
+    val updateFeedback: StateFlow<String?> = _updateFeedback.asStateFlow()
+
     init {
         loadVideos()
+        checkForUpdates(silent = true)
+    }
+
+    fun checkForUpdates(silent: Boolean = false) {
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            val info = AppUpdateManager.checkForUpdates(getApplication())
+            _isCheckingUpdate.value = false
+            if (info != null) {
+                if (info.isUpdateAvailable) {
+                    _updateInfo.value = info
+                } else if (!silent) {
+                    _updateFeedback.value = "You are on the latest version of Snap Loom (${info.currentVersion}) 🎉"
+                }
+            } else if (!silent) {
+                _updateFeedback.value = "Could not reach update server. Check your internet connection."
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _updateInfo.value = null
+    }
+
+    fun dismissFeedback() {
+        _updateFeedback.value = null
     }
 
     fun selectTab(index: Int) {

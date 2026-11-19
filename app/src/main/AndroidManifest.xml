@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
+    <!-- Internet & In-App Auto Updates -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Audio & Camera for Facecam Reaction -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -65,6 +69,17 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaProjection|camera|microphone" />
+
+        <!-- FileProvider for APK In-App Updates -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

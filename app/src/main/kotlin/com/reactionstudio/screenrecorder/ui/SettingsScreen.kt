@@ -19,22 +19,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +48,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.size
+import com.reactionstudio.screenrecorder.utils.AppUpdateManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +71,10 @@ import com.reactionstudio.screenrecorder.ui.main.MainScreenViewModel
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(viewModel: MainScreenViewModel) {
+    val context = LocalContext.current
     val config by viewModel.config.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val currentVersion = AppUpdateManager.getCurrentAppVersion(context)
     val scrollState = rememberScrollState()
 
     Column(
@@ -331,6 +342,55 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                             onClick = { viewModel.updateCountdown(opt) },
                             label = { Text(opt.displayName) }
                         )
+                    }
+                }
+            }
+        }
+
+        // Snap Loom Updates & About Section
+        SettingsCard(
+            title = "App Updates & About",
+            icon = Icons.Default.SystemUpdate,
+            subtitle = "Installed Version: v$currentVersion • Developed by prince-dev777"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Snap Loom checks for new releases on GitHub. When an update is published, you can download and install it instantly without losing your videos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.checkForUpdates(silent = false) },
+                        enabled = !isCheckingUpdate,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Checking...")
+                        } else {
+                            Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Check Updates")
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { AppUpdateManager.openBrowser(context, AppUpdateManager.GITHUB_RELEASES_PAGE) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Releases")
                     }
                 }
             }

@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import com.reactionstudio.screenrecorder.model.RecordingState
 import com.reactionstudio.screenrecorder.ui.RecordingsScreen
 import com.reactionstudio.screenrecorder.ui.SettingsScreen
+import com.reactionstudio.screenrecorder.utils.AppUpdateManager
 import com.reactionstudio.screenrecorder.utils.PermissionHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,6 +86,8 @@ fun MainScreen(
     val context = LocalContext.current
     val recordingState by viewModel.recordingState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
+    val updateInfo by viewModel.updateInfo.collectAsState()
+    val updateFeedback by viewModel.updateFeedback.collectAsState()
 
     Scaffold(
         topBar = {
@@ -183,6 +186,71 @@ fun MainScreen(
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissCompletedDialog() }) {
                     Text("Dismiss")
+                }
+            }
+        )
+    }
+
+    // App Update Feedback Dialog (e.g. "You're on the latest version")
+    updateFeedback?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissFeedback() },
+            title = { Text("App Update") },
+            text = { Text(msg) },
+            confirmButton = {
+                Button(onClick = { viewModel.dismissFeedback() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    // New Update Available Dialog
+    updateInfo?.let { update ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpdateDialog() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🚀 Update Available (v${update.latestVersion})")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "A new version of Snap Loom is available for your device.",
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "Current Version: v${update.currentVersion}\nLatest Version: v${update.latestVersion}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (update.releaseNotes.isNotBlank()) {
+                        Text("What's New:", fontWeight = FontWeight.Bold)
+                        Text(
+                            update.releaseNotes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        AppUpdateManager.startDownload(context, update.apkDownloadUrl, update.latestVersion)
+                        viewModel.dismissUpdateDialog()
+                    }
+                ) {
+                    Text("Update Now (Download APK)")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpdateDialog() }) {
+                    Text("Later")
                 }
             }
         )

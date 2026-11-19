@@ -72,4 +72,13 @@ object PermissionHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
     }
+
+    fun isRestrictedSettingsLikely(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    }
+
+    fun isXiaomiOrPoco(): Boolean {
+        val m = Build.MANUFACTURER.lowercase()
+        return m.contains("xiaomi") || m.contains("redmi") || m.contains("poco")
+    }
 }

@@ -100,7 +100,33 @@ class PreferencesManager(context: Context) {
         _configFlow.value = newConfig
     }
 
+    fun getUpdateDismissCount(version: String): Int {
+        val savedVer = prefs.getString(KEY_DISMISSED_UPDATE_VERSION, null)
+        if (savedVer != version) {
+            return 0
+        }
+        return prefs.getInt(KEY_UPDATE_DISMISS_COUNT, 0)
+    }
+
+    fun incrementUpdateDismissCount(version: String): Int {
+        val current = getUpdateDismissCount(version) + 1
+        prefs.edit()
+            .putString(KEY_DISMISSED_UPDATE_VERSION, version)
+            .putInt(KEY_UPDATE_DISMISS_COUNT, current)
+            .apply()
+        return current
+    }
+
+    fun resetUpdateDismissCount() {
+        prefs.edit()
+            .remove(KEY_DISMISSED_UPDATE_VERSION)
+            .remove(KEY_UPDATE_DISMISS_COUNT)
+            .apply()
+    }
+
     companion object {
+        private const val KEY_DISMISSED_UPDATE_VERSION = "pref_dismissed_update_version"
+        private const val KEY_UPDATE_DISMISS_COUNT = "pref_update_dismiss_count"
         private const val KEY_RESOLUTION = "pref_resolution"
         private const val KEY_FPS = "pref_fps"
         private const val KEY_BITRATE = "pref_bitrate"

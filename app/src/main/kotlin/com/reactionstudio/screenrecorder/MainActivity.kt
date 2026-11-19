@@ -66,7 +66,13 @@ class MainActivity : ComponentActivity() {
         val audioGranted = permissions[android.Manifest.permission.RECORD_AUDIO] ?: false
 
         if (cameraGranted && audioGranted) {
-            Toast.makeText(this, "Camera and Audio permissions granted!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Camera and Audio permissions granted! 🎉", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(
+                this,
+                "Camera/Mic permission needed. In App Info -> Permissions, please enable them.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -74,7 +80,13 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) {
         if (PermissionHelper.hasOverlayPermission(this)) {
-            Toast.makeText(this, "Overlay permission granted! Facecam is ready.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Overlay permission granted! Facecam is ready. 🎉", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(
+                this,
+                "If blocked by 'Restricted settings', tap App Info -> 3 dots ⋮ -> 'Allow restricted settings'",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 

@@ -81,8 +81,18 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun getUpdateDismissCount(version: String): Int {
+        return prefsManager.getUpdateDismissCount(version)
+    }
+
     fun dismissUpdateDialog() {
         _updateInfo.value = null
+    }
+
+    fun onDismissUpdateLater(version: String): Int {
+        val count = prefsManager.incrementUpdateDismissCount(version)
+        _updateInfo.value = null
+        return count
     }
 
     fun dismissFeedback() {

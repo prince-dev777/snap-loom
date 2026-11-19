@@ -1,5 +1,6 @@
 package com.reactionstudio.screenrecorder.ui.main
 
+import android.app.Activity
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -56,8 +57,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,7 +77,9 @@ import androidx.compose.ui.unit.sp
 import com.reactionstudio.screenrecorder.model.RecordingState
 import com.reactionstudio.screenrecorder.ui.RecordingsScreen
 import com.reactionstudio.screenrecorder.ui.SettingsScreen
+import com.reactionstudio.screenrecorder.utils.AppAccessState
 import com.reactionstudio.screenrecorder.utils.AppUpdateManager
+import com.reactionstudio.screenrecorder.utils.LicenseManager
 import com.reactionstudio.screenrecorder.utils.PermissionHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +95,11 @@ fun MainScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateFeedback by viewModel.updateFeedback.collectAsState()
+
+    // Immediately check for updates when entering MainScreen
+    LaunchedEffect(Unit) {
+        viewModel.checkForUpdates(silent = true)
+    }
 
     Scaffold(
         topBar = {
@@ -205,24 +217,44 @@ fun MainScreen(
         )
     }
 
-    // New Update Available Dialog
+    // New Update Available Dialog with Cancel Limit (Max 3 cancellations before mandatory app close)
     updateInfo?.let { update ->
+        val dismissCount = viewModel.getUpdateDismissCount(update.latestVersion)
+        val isMandatory = dismissCount >= 3
+
         AlertDialog(
-            onDismissRequest = { viewModel.dismissUpdateDialog() },
+            onDismissRequest = {
+                if (isMandatory) {
+                    (context as? Activity)?.finishAffinity()
+                } else {
+                    val newCount = viewModel.onDismissUpdateLater(update.latestVersion)
+                    if (newCount >= 3) {
+                        (context as? Activity)?.finishAffinity()
+                    }
+                }
+            },
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("🚀 Update Available (v${update.latestVersion})")
+                    Text(if (isMandatory) "⚠️ Mandatory Update Required" else "🚀 Update Available (v${update.latestVersion})")
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "A new version of Snap Loom is available for your device.",
-                        fontWeight = FontWeight.Medium
-                    )
+                    if (isMandatory) {
+                        Text(
+                            "You have dismissed this update 3 times. Please update Snap Loom to v${update.latestVersion} to continue using the studio.",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Text(
+                            "A new version of Snap Loom is available for your device.",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     Text(
                         "Current Version: v${update.currentVersion}\nLatest Version: v${update.latestVersion}",
                         style = MaterialTheme.typography.bodySmall,
@@ -236,6 +268,13 @@ fun MainScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    if (!isMandatory) {
+                        Text(
+                            "Notice: You can skip this update ${3 - dismissCount} more time(s) before it becomes mandatory.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -245,12 +284,23 @@ fun MainScreen(
                         viewModel.dismissUpdateDialog()
                     }
                 ) {
-                    Text("Update Now (Download APK)")
+                    Text("Update Now (Fast OTA)")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissUpdateDialog() }) {
-                    Text("Later")
+                if (isMandatory) {
+                    TextButton(onClick = { (context as? Activity)?.finishAffinity() }) {
+                        Text("Exit App", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    TextButton(onClick = {
+                        val count = viewModel.onDismissUpdateLater(update.latestVersion)
+                        if (count >= 3) {
+                            (context as? Activity)?.finishAffinity()
+                        }
+                    }) {
+                        Text("Later (${3 - dismissCount} left)")
+                    }
                 }
             }
         )
@@ -268,13 +318,26 @@ fun StudioHomeTab(
     val context = LocalContext.current
     val config by viewModel.config.collectAsState()
     val isFacecamPreviewActive by viewModel.isFacecamPreviewActive.collectAsState()
+    val updateInfo by viewModel.updateInfo.collectAsState()
     val scrollState = rememberScrollState()
+
+    var showRestrictedSettingsDialog by remember { mutableStateOf(false) }
 
     val hasOverlay = PermissionHelper.hasOverlayPermission(context)
     val hasCamera = PermissionHelper.hasCameraPermission(context)
     val hasAudio = PermissionHelper.hasAudioPermission(context)
     val hasNotification = PermissionHelper.hasNotificationPermission(context)
     val allPermissionsGranted = hasOverlay && hasCamera && hasAudio && hasNotification
+
+    if (showRestrictedSettingsDialog) {
+        RestrictedSettingsDialog(
+            onDismiss = { showRestrictedSettingsDialog = false },
+            onOpenAppInfo = {
+                context.startActivity(PermissionHelper.openAppSettingsIntent(context))
+            },
+            onOpenOverlay = onOpenOverlaySettings
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -283,6 +346,51 @@ fun StudioHomeTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // VIP / Trial Expiry Status Pill
+        VipTimerBadge(context = context)
+
+        // New Update Available Alert Banner (right on Home Screen!)
+        if (updateInfo?.isUpdateAvailable == true) {
+            val update = updateInfo!!
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🚀 New Update Available (v${update.latestVersion})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Current: v${update.currentVersion} • Tap to update now",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            AppUpdateManager.startDownload(context, update.apkDownloadUrl, update.latestVersion)
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Update", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
         // Permissions Warning Banner if any are missing
         if (!allPermissionsGranted) {
             PermissionsBanner(
@@ -291,7 +399,8 @@ fun StudioHomeTab(
                 hasAudio = hasAudio,
                 hasNotification = hasNotification,
                 onRequestRuntimePermissions = onRequestPermissions,
-                onOpenOverlaySettings = onOpenOverlaySettings
+                onOpenOverlaySettings = onOpenOverlaySettings,
+                onOpenRestrictedGuide = { showRestrictedSettingsDialog = true }
             )
         }
 
@@ -302,7 +411,11 @@ fun StudioHomeTab(
             onStartClick = {
                 if (!allPermissionsGranted) {
                     if (!hasOverlay) {
-                        onOpenOverlaySettings()
+                        if (PermissionHelper.isRestrictedSettingsLikely()) {
+                            showRestrictedSettingsDialog = true
+                        } else {
+                            onOpenOverlaySettings()
+                        }
                     } else {
                         onRequestPermissions()
                     }
@@ -748,7 +861,8 @@ fun PermissionsBanner(
     hasAudio: Boolean,
     hasNotification: Boolean,
     onRequestRuntimePermissions: () -> Unit,
-    onOpenOverlaySettings: () -> Unit
+    onOpenOverlaySettings: () -> Unit,
+    onOpenRestrictedGuide: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -778,29 +892,224 @@ fun PermissionsBanner(
                 )
             }
             Text(
-                text = "Screen recording, Camera (Facecam), Audio, and Floating Window overlay permissions are required for reaction videos.",
+                text = "Screen recording, Camera (Facecam), Audio, aur Floating Window overlay permissions zaroori hain.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 if (!hasCamera || !hasAudio || !hasNotification) {
                     Button(
                         onClick = onRequestRuntimePermissions,
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text("Grant Camera & Mic")
+                        Text("Camera & Mic", fontSize = 12.sp)
                     }
                 }
                 if (!hasOverlay) {
                     Button(
                         onClick = onOpenOverlaySettings,
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text("Allow Overlay")
+                        Text("Allow Overlay", fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // Xiaomi & Restricted settings fix button
+            OutlinedButton(
+                onClick = onOpenRestrictedGuide,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                Text("⚠️ 'App was denied access' error? Tap for 10s fix", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun VipTimerBadge(context: Context) {
+    val accessState = remember { LicenseManager.getInstance(context).getAppAccessState() }
+
+    when (accessState) {
+        is AppAccessState.TrialActive -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(text = "⏳", fontSize = 22.sp)
+                        Column {
+                            Text(
+                                text = "3-Day Free VIP Trial Active",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "${accessState.daysRemaining} days left (${accessState.hoursRemaining} hours remaining)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "PRO FREE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
         }
+        is AppAccessState.Subscribed -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF10B981).copy(alpha = 0.15f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(text = "👑", fontSize = 22.sp)
+                        Column {
+                            Text(
+                                text = accessState.planName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                            Text(
+                                text = if (accessState.daysRemaining != null) "${accessState.daysRemaining} days left (Expires: ${accessState.expiresAt})" else "Lifetime Pro Access Unlocked",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF10B981).copy(alpha = 0.2f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "VIP PRO",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
+                    }
+                }
+            }
+        }
+        else -> {}
     }
+}
+
+@Composable
+fun RestrictedSettingsDialog(
+    onDismiss: () -> Unit,
+    onOpenAppInfo: () -> Unit,
+    onOpenOverlay: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text("Fix 'Denied Access' Setting")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Xiaomi (HyperOS) aur Android 13/14/15 me sideloaded apps ke liye Overlay aur Camera restricted mode me rehta hai.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Isko 10 second me aise unlock karein:",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(10.dp)
+                ) {
+                    Text("1️⃣ Neeche '1. Open App Info' button dabayein.", style = MaterialTheme.typography.bodySmall)
+                    Text("2️⃣ Top-right corner me 3-Dots (⋮) par tap karein.", style = MaterialTheme.typography.bodySmall)
+                    Text("3️⃣ 'Allow restricted settings' choose karein aur Fingerprint/PIN lagayein.", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("4️⃣ 'Permissions' me jaakar Camera aur Mic ko Allow karein.", style = MaterialTheme.typography.bodySmall)
+                    Text("5️⃣ Phir '2. Open Overlay' se Snap Loom ko ON karein.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onOpenAppInfo()
+                onDismiss()
+            }) {
+                Text("1. Open App Info (3-Dots ⋮)")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = {
+                onOpenOverlay()
+                onDismiss()
+            }) {
+                Text("2. Open Overlay")
+            }
+        }
+    )
 }

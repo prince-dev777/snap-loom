@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -133,34 +134,103 @@ object AppUpdateManager {
     }
 
     /**
-     * Initiates the download via Android DownloadManager with system notification.
+     * Initiates the download via Android DownloadManager with system notification
+     * and automatically launches the package installer once download is complete.
      */
     fun startDownload(context: Context, downloadUrl: String, version: String) {
+        val appContext = context.applicationContext
         try {
+            // Check unknown source install permission on Android 8+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!appContext.packageManager.canRequestPackageInstalls()) {
+                    Toast.makeText(
+                        appContext,
+                        "Please allow 'Install unknown apps' for Snap Loom to install updates automatically",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    val manageIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${appContext.packageName}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    appContext.startActivity(manageIntent)
+                }
+            }
+
             val fileName = "SnapLoom-$version.apk"
+            val destFile = File(appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+            if (destFile.exists()) {
+                destFile.delete()
+            }
+
             val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
-                setTitle("Snap Loom $version")
+                setTitle("Snap Loom v$version")
                 setDescription("Downloading new update...")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                setDestinationUri(Uri.fromFile(destFile))
                 setMimeType("application/vnd.android.package-archive")
             }
 
-            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+            val dm = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
             if (dm != null) {
-                dm.enqueue(request)
+                val downloadId = dm.enqueue(request)
                 Toast.makeText(
-                    context,
-                    "Downloading Snap Loom update in background... Check notifications.",
+                    appContext,
+                    "Downloading Snap Loom v$version... Package installer will open automatically when finished.",
                     Toast.LENGTH_LONG
                 ).show()
+
+                // Auto install listener
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(recvContext: Context?, intent: Intent?) {
+                        val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) ?: -1L
+                        if (id == downloadId) {
+                            try {
+                                appContext.unregisterReceiver(this)
+                            } catch (_: Exception) {}
+                            installApk(appContext, destFile)
+                        }
+                    }
+                }
+
+                val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+                } else {
+                    appContext.registerReceiver(receiver, filter)
+                }
             } else {
-                openBrowser(context, downloadUrl)
+                openBrowser(appContext, downloadUrl)
             }
         } catch (e: Exception) {
             e.printStackTrace()
             // Fallback to browser
-            openBrowser(context, downloadUrl)
+            openBrowser(appContext, downloadUrl)
+        }
+    }
+
+    /**
+     * Prompts the system package installer for the downloaded APK using FileProvider.
+     */
+    fun installApk(context: Context, apkFile: File) {
+        try {
+            if (!apkFile.exists()) {
+                Toast.makeText(context, "Downloaded file not found. Please try again.", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                apkFile
+            )
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(installIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Failed to start package installer: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 

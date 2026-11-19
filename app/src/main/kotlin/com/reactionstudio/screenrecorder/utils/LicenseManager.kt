@@ -39,6 +39,7 @@ class LicenseManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("snap_loom_license_prefs", Context.MODE_PRIVATE)
 
     companion object {
+        private const val API_KEY = "AIzaSyDi0vQM-Rj2hdol7CWcQIh4qtOv5NvxwWU"
         private const val PROJECT_ID = "prince-master-hub"
         private const val TARGET_APP_PROJECT = "snap-loom"
         private const val FIRESTORE_BASE_URL = "https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/licenses"
@@ -105,7 +106,7 @@ class LicenseManager(private val context: Context) {
         val deviceId = getDeviceId()
 
         try {
-            val url = URL("$FIRESTORE_BASE_URL/$cleanKey")
+            val url = URL("$FIRESTORE_BASE_URL/$cleanKey?key=$API_KEY")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10000
@@ -201,7 +202,7 @@ class LicenseManager(private val context: Context) {
 
     private fun bindDeviceToFirestore(key: String, devices: List<String>) {
         try {
-            val url = URL("$FIRESTORE_BASE_URL/$key?updateMask.fieldPaths=boundDevices")
+            val url = URL("$FIRESTORE_BASE_URL/$key?updateMask.fieldPaths=boundDevices&key=$API_KEY")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "PATCH"
                 connectTimeout = 8000

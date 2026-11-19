@@ -112,14 +112,7 @@ class LicenseManager(private val context: Context) {
             return AppAccessState.Subscribed(planName, null, null) // Lifetime
         }
 
-        // 2. Check Pending Approval
-        val isPending = prefs.getBoolean("is_pending_approval", false)
-        if (isPending) {
-            val reqAt = prefs.getString("requested_at", "Recently") ?: "Recently"
-            return AppAccessState.PendingApproval(reqAt)
-        }
-
-        // 3. Check 3-Day Free VIP Trial
+        // 2. Check 3-Day Free VIP Trial: Uninterrupted access for 72 hours
         val firstLaunch = getOrCreateFirstLaunchTime()
         val now = System.currentTimeMillis()
         val elapsed = now - firstLaunch
@@ -131,12 +124,100 @@ class LicenseManager(private val context: Context) {
             return AppAccessState.TrialActive(daysRemaining = days, hoursRemaining = hours)
         }
 
+        // 3. Trial has expired: Check if user has requested approval
+        val isPending = prefs.getBoolean("is_pending_approval", false)
+        if (isPending) {
+            val reqAt = prefs.getString("requested_at", "Recently") ?: "Recently"
+            return AppAccessState.PendingApproval(reqAt)
+        }
+
         return AppAccessState.TrialExpired
     }
 
     fun isAppAccessible(): Boolean {
         val state = getAppAccessState()
         return state is AppAccessState.TrialActive || state is AppAccessState.Subscribed
+    }
+
+    /**
+     * Silently registers the device to Firestore on app open so Prince can see it in Admin Dashboard,
+     * and syncs any approved VIP plan from the cloud.
+     */
+    suspend fun silentSyncWithCloud(): Unit = withContext(Dispatchers.IO) {
+        val deviceId = getDeviceId()
+        val model = getDeviceModel()
+        val nowIso = getIsoTimestamp(System.currentTimeMillis())
+
+        try {
+            val url = URL("$FIRESTORE_DEVICES_URL/$deviceId?key=$API_KEY")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("Accept", "application/json")
+            }
+
+            val code = conn.responseCode
+            if (code == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                val sb = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    sb.append(line)
+                }
+                reader.close()
+                conn.disconnect()
+
+                val json = JSONObject(sb.toString())
+                val fields = json.optJSONObject("fields")
+                if (fields != null) {
+                    val status = fields.optJSONObject("status")?.optString("stringValue") ?: "PENDING"
+                    if (status.equals("APPROVED", ignoreCase = true)) {
+                        val plan = fields.optJSONObject("plan")?.optString("stringValue") ?: "Snap Loom Pro"
+                        val expiresAt = fields.optJSONObject("subscriptionExpiresAt")?.optString("stringValue")
+                        prefs.edit()
+                            .putBoolean("is_approved", true)
+                            .putBoolean("is_pending_approval", false)
+                            .putString("plan_name", plan)
+                            .putString("sub_expires_at", expiresAt)
+                            .apply()
+                    } else if (status.equals("REVOKED", ignoreCase = true)) {
+                        prefs.edit().putBoolean("is_revoked", true).apply()
+                    }
+                }
+            } else if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                conn.disconnect()
+                // Device not in Firestore yet -> Register silently as PENDING so Prince sees it in Admin Panel
+                val patchConn = (URL("$FIRESTORE_DEVICES_URL/$deviceId?key=$API_KEY").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PATCH"
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                }
+
+                val fields = JSONObject().apply {
+                    put("deviceId", JSONObject().put("stringValue", deviceId))
+                    put("deviceModel", JSONObject().put("stringValue", model))
+                    put("projectId", JSONObject().put("stringValue", TARGET_APP_PROJECT))
+                    put("status", JSONObject().put("stringValue", "PENDING"))
+                    put("requestedAt", JSONObject().put("stringValue", nowIso))
+                    put("plan", JSONObject().put("stringValue", "3-Day VIP Trial"))
+                }
+                val payload = JSONObject().put("fields", fields)
+
+                val writer = OutputStreamWriter(patchConn.outputStream)
+                writer.write(payload.toString())
+                writer.flush()
+                writer.close()
+                patchConn.responseCode
+                patchConn.disconnect()
+            } else {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /**

@@ -33,6 +33,12 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -382,6 +388,37 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                var isSyncing by remember { mutableStateOf(false) }
+                val scope = rememberCoroutineScope()
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            licenseManager.requestDeviceActivation()
+                            licenseManager.silentSyncWithCloud()
+                            isSyncing = false
+                            Toast.makeText(context, "Device registered in Admin Dashboard!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = !isSyncing,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Connecting...")
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Send / Sync Request to Admin Portal")
+                    }
+                }
             }
         }
 

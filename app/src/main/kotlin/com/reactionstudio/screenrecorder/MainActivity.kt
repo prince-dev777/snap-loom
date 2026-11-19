@@ -21,10 +21,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.reactionstudio.screenrecorder.service.ScreenRecordService
+import com.reactionstudio.screenrecorder.ui.ActivationScreen
 import com.reactionstudio.screenrecorder.ui.SplashScreen
 import com.reactionstudio.screenrecorder.ui.main.MainScreen
 import com.reactionstudio.screenrecorder.ui.main.MainScreenViewModel
 import com.reactionstudio.screenrecorder.ui.theme.ScreenReactionStudioTheme
+import com.reactionstudio.screenrecorder.utils.LicenseManager
 import com.reactionstudio.screenrecorder.utils.PermissionHelper
 
 class MainActivity : ComponentActivity() {
@@ -84,9 +86,16 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var showSplash by remember { mutableStateOf(true) }
+                    var isLicenseActive by remember {
+                        mutableStateOf(LicenseManager.getInstance(this).isLicenseValid())
+                    }
 
                     if (showSplash) {
                         SplashScreen(onSplashFinished = { showSplash = false })
+                    } else if (!isLicenseActive) {
+                        ActivationScreen(
+                            onLicenseActivated = { isLicenseActive = true }
+                        )
                     } else {
                         MainScreen(
                             viewModel = viewModel,

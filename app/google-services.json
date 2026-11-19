@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "658441574821",
+    "project_id": "prince-master-hub",
+    "storage_bucket": "prince-master-hub.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:658441574821:android:1bbaabe3b6db57516bb04c",
+        "android_client_info": {
+          "package_name": "com.reactionstudio.screenrecorder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTgR4fk01ZybrEYDN02Uwjc_faNsCYc3Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

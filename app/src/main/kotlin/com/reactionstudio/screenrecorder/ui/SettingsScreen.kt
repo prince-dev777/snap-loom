@@ -22,9 +22,11 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HighQuality
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Timer
@@ -45,12 +47,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.size
 import com.reactionstudio.screenrecorder.utils.AppUpdateManager
+import com.reactionstudio.screenrecorder.utils.LicenseManager
+import com.reactionstudio.screenrecorder.utils.LicenseStatus
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -344,6 +349,51 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                         )
                     }
                 }
+            }
+        }
+
+        // License & Hardware Lock Section
+        val licenseManager = remember { LicenseManager.getInstance(context) }
+        val licenseStatus = remember { licenseManager.getLicenseStatus() }
+        val deviceId = remember { licenseManager.getDeviceId() }
+
+        SettingsCard(
+            title = "Snap Loom License & Device Lock",
+            icon = Icons.Default.Shield,
+            subtitle = when (licenseStatus) {
+                is LicenseStatus.Active -> "Licensed to ${licenseStatus.clientName} (${licenseStatus.key})"
+                is LicenseStatus.Expired -> "License Expired"
+                is LicenseStatus.Revoked -> "License Revoked"
+                is LicenseStatus.Unlicensed -> "Unlicensed Copy"
+            }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Device ID: $deviceId",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = when (licenseStatus) {
+                            is LicenseStatus.Active -> if (licenseStatus.daysRemaining != null) "${licenseStatus.daysRemaining} days left" else "Lifetime"
+                            else -> "Inactive"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (licenseStatus is LicenseStatus.Active) Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                }
+
+                Text(
+                    text = "This installation is cryptographically bound to this phone via Firebase Master Hub.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 

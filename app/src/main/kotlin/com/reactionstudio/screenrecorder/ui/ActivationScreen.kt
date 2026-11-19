@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material3.Button
@@ -280,25 +282,49 @@ fun ActivationScreen(
                 }
             }
 
-            // Need Help / Contact Prince
+            // Get License Key via Telegram (@atheist_09)
             OutlinedButton(
                 onClick = {
+                    val message = "Hello Prince, I want to get a license key for Snap Loom!\nMy Device ID: $deviceId"
+                    val encodedMessage = Uri.encode(message)
+                    val tgAppUri = Uri.parse("tg://resolve?domain=atheist_09&text=$encodedMessage")
+                    val tgWebUri = Uri.parse("https://t.me/atheist_09?text=$encodedMessage")
+
+                    val appIntent = Intent(Intent.ACTION_VIEW, tgAppUri).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
                     try {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/prince-dev777")
-                        ).apply {
+                        context.startActivity(appIntent)
+                    } catch (e: Exception) {
+                        val webIntent = Intent(Intent.ACTION_VIEW, tgWebUri).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Could not open browser", Toast.LENGTH_SHORT).show()
+                        try {
+                            context.startActivity(webIntent)
+                        } catch (e2: Exception) {
+                            Toast.makeText(context, "Contact on Telegram: @atheist_09", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
             ) {
-                Text("Get License Key / Contact Admin", color = Color(0xFF94A3B8), style = MaterialTheme.typography.bodySmall)
+                Icon(
+                    imageVector = Icons.Default.Send,
+                    contentDescription = null,
+                    tint = Color(0xFF38BDF8),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Get License Key via Telegram (@atheist_09)",
+                    color = Color(0xFF38BDF8),
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }

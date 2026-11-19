@@ -86,15 +86,15 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var showSplash by remember { mutableStateOf(true) }
-                    var isLicenseActive by remember {
-                        mutableStateOf(LicenseManager.getInstance(this).isLicenseValid())
+                    var isAccessGranted by remember {
+                        mutableStateOf(LicenseManager.getInstance(this).isAppAccessible())
                     }
 
                     if (showSplash) {
                         SplashScreen(onSplashFinished = { showSplash = false })
-                    } else if (!isLicenseActive) {
+                    } else if (!isAccessGranted) {
                         ActivationScreen(
-                            onLicenseActivated = { isLicenseActive = true }
+                            onLicenseActivated = { isAccessGranted = true }
                         )
                     } else {
                         MainScreen(

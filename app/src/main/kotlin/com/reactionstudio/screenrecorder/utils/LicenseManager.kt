@@ -2,6 +2,7 @@ package com.reactionstudio.screenrecorder.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import android.provider.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,20 +18,16 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-sealed class LicenseStatus {
-    object Unlicensed : LicenseStatus()
-    data class Active(
-        val key: String,
-        val clientName: String,
-        val expiresAt: String?,
-        val daysRemaining: Int?
-    ) : LicenseStatus()
-    data class Expired(val key: String, val expiryDate: String) : LicenseStatus()
-    data class Revoked(val reason: String) : LicenseStatus()
+sealed class AppAccessState {
+    data class TrialActive(val daysRemaining: Int, val hoursRemaining: Int) : AppAccessState()
+    object TrialExpired : AppAccessState()
+    data class Subscribed(val planName: String, val expiresAt: String?, val daysRemaining: Int?) : AppAccessState()
+    data class PendingApproval(val requestedAt: String) : AppAccessState()
+    object Revoked : AppAccessState()
 }
 
 sealed class ActivationResult {
-    data class Success(val message: String, val daysRemaining: Int?) : ActivationResult()
+    data class Success(val message: String) : ActivationResult()
     data class Error(val errorMessage: String) : ActivationResult()
 }
 
@@ -42,7 +39,9 @@ class LicenseManager(private val context: Context) {
         private const val API_KEY = "AIzaSyDi0vQM-Rj2hdol7CWcQIh4qtOv5NvxwWU"
         private const val PROJECT_ID = "prince-master-hub"
         private const val TARGET_APP_PROJECT = "snap-loom"
-        private const val FIRESTORE_BASE_URL = "https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/licenses"
+        private const val FIRESTORE_DEVICES_URL = "https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/devices"
+        private const val FIRESTORE_LICENSES_URL = "https://firestore.googleapis.com/v1/projects/$PROJECT_ID/databases/(default)/documents/licenses"
+        private const val THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000L // 72 Hours
 
         @Volatile
         private var instance: LicenseManager? = null
@@ -66,63 +65,145 @@ class LicenseManager(private val context: Context) {
         }
     }
 
+    fun getDeviceModel(): String {
+        return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
+    }
+
     /**
-     * Reads the current cached license state.
+     * Initializes or reads first launch time for the 3-day free trial.
      */
-    fun getLicenseStatus(): LicenseStatus {
-        val key = prefs.getString("key", null) ?: return LicenseStatus.Unlicensed
-        val clientName = prefs.getString("client_name", "Valued Creator") ?: "Valued Creator"
-        val expiresAt = prefs.getString("expires_at", null)
+    fun getOrCreateFirstLaunchTime(): Long {
+        var firstLaunch = prefs.getLong("first_launch_time", 0L)
+        if (firstLaunch == 0L) {
+            firstLaunch = System.currentTimeMillis()
+            prefs.edit().putLong("first_launch_time", firstLaunch).apply()
+        }
+        return firstLaunch
+    }
+
+    /**
+     * Determines whether the app can be used (Trial Active, Subscribed) or must be locked.
+     */
+    fun getAppAccessState(): AppAccessState {
+        // 1. Check if user is Subscribed/Approved
+        val isApproved = prefs.getBoolean("is_approved", false)
         val isRevoked = prefs.getBoolean("is_revoked", false)
-
         if (isRevoked) {
-            return LicenseStatus.Revoked("License suspended by administrator")
+            return AppAccessState.Revoked
         }
 
-        if (expiresAt != null) {
-            val remaining = calculateDaysRemaining(expiresAt)
-            if (remaining != null && remaining < 0) {
-                return LicenseStatus.Expired(key, expiresAt)
+        if (isApproved) {
+            val subExpiresAt = prefs.getString("sub_expires_at", null)
+            val planName = prefs.getString("plan_name", "Snap Loom Pro") ?: "Snap Loom Pro"
+            if (subExpiresAt != null) {
+                val daysLeft = calculateDaysRemaining(subExpiresAt)
+                if (daysLeft != null && daysLeft < 0) {
+                    return AppAccessState.TrialExpired // Subscription ended
+                }
+                return AppAccessState.Subscribed(planName, subExpiresAt, daysLeft)
             }
-            return LicenseStatus.Active(key, clientName, expiresAt, remaining)
+            return AppAccessState.Subscribed(planName, null, null) // Lifetime
         }
 
-        return LicenseStatus.Active(key, clientName, null, null)
+        // 2. Check Pending Approval
+        val isPending = prefs.getBoolean("is_pending_approval", false)
+        if (isPending) {
+            val reqAt = prefs.getString("requested_at", "Recently") ?: "Recently"
+            return AppAccessState.PendingApproval(reqAt)
+        }
+
+        // 3. Check 3-Day Free VIP Trial
+        val firstLaunch = getOrCreateFirstLaunchTime()
+        val now = System.currentTimeMillis()
+        val elapsed = now - firstLaunch
+        val remainingMs = THREE_DAYS_MS - elapsed
+
+        if (remainingMs > 0) {
+            val hours = (remainingMs / (1000 * 60 * 60)).toInt()
+            val days = (remainingMs / (1000 * 60 * 60 * 24)).toInt()
+            return AppAccessState.TrialActive(daysRemaining = days, hoursRemaining = hours)
+        }
+
+        return AppAccessState.TrialExpired
     }
 
-    fun isLicenseValid(): Boolean {
-        return getLicenseStatus() is LicenseStatus.Active
+    fun isAppAccessible(): Boolean {
+        val state = getAppAccessState()
+        return state is AppAccessState.TrialActive || state is AppAccessState.Subscribed
     }
 
     /**
-     * Activates a license key with Firebase Firestore and binds device ID.
+     * User requests activation: Sends device details to Firebase Firestore and sets status to PENDING.
      */
-    suspend fun activateLicense(inputKey: String): ActivationResult = withContext(Dispatchers.IO) {
-        val cleanKey = inputKey.trim().uppercase()
-        if (cleanKey.isBlank()) {
-            return@withContext ActivationResult.Error("Please enter a valid license key")
-        }
-
+    suspend fun requestDeviceActivation(): ActivationResult = withContext(Dispatchers.IO) {
         val deviceId = getDeviceId()
+        val model = getDeviceModel()
+        val nowIso = getIsoTimestamp(System.currentTimeMillis())
 
         try {
-            val url = URL("$FIRESTORE_BASE_URL/$cleanKey?key=$API_KEY")
+            val url = URL("$FIRESTORE_DEVICES_URL/$deviceId?key=$API_KEY")
             val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
+                requestMethod = "PATCH"
                 connectTimeout = 10000
                 readTimeout = 10000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
+
+            val fields = JSONObject().apply {
+                put("deviceId", JSONObject().put("stringValue", deviceId))
+                put("deviceModel", JSONObject().put("stringValue", model))
+                put("projectId", JSONObject().put("stringValue", TARGET_APP_PROJECT))
+                put("status", JSONObject().put("stringValue", "PENDING"))
+                put("requestedAt", JSONObject().put("stringValue", nowIso))
+            }
+            val payload = JSONObject().put("fields", fields)
+
+            val writer = OutputStreamWriter(conn.outputStream)
+            writer.write(payload.toString())
+            writer.flush()
+            writer.close()
+
+            val code = conn.responseCode
+            conn.disconnect()
+
+            if (code == HttpURLConnection.HTTP_OK || code == 200 || code == 201) {
+                prefs.edit()
+                    .putBoolean("is_pending_approval", true)
+                    .putString("requested_at", nowIso)
+                    .apply()
+                ActivationResult.Success("Activation request sent to Prince!")
+            } else {
+                ActivationResult.Error("Could not submit request (Error $code)")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Even if network fails, mark locally as requested so user can open Telegram
+            prefs.edit()
+                .putBoolean("is_pending_approval", true)
+                .putString("requested_at", nowIso)
+                .apply()
+            ActivationResult.Success("Ready to connect on Telegram!")
+        }
+    }
+
+    /**
+     * Checks if Prince has clicked "Approve" for this Device ID in the Admin Dashboard.
+     */
+    suspend fun checkDeviceApprovalStatus(): Boolean = withContext(Dispatchers.IO) {
+        val deviceId = getDeviceId()
+        try {
+            val url = URL("$FIRESTORE_DEVICES_URL/$deviceId?key=$API_KEY")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
                 setRequestProperty("Accept", "application/json")
             }
 
-            val responseCode = conn.responseCode
-            if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
                 conn.disconnect()
-                return@withContext ActivationResult.Error("License key not found. Please verify your key with Prince.")
-            }
-
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                conn.disconnect()
-                return@withContext ActivationResult.Error("Unable to verify license (Server code: $responseCode)")
+                return@withContext false
             }
 
             val reader = BufferedReader(InputStreamReader(conn.inputStream))
@@ -135,125 +216,97 @@ class LicenseManager(private val context: Context) {
             conn.disconnect()
 
             val json = JSONObject(sb.toString())
-            val fields = json.optJSONObject("fields")
-                ?: return@withContext ActivationResult.Error("Invalid license format on server")
+            val fields = json.optJSONObject("fields") ?: return@withContext false
 
-            // 1. Check Project ID
-            val licProjectId = fields.optJSONObject("projectId")?.optString("stringValue", "") ?: ""
-            if (licProjectId.isNotBlank() && licProjectId != TARGET_APP_PROJECT) {
-                return@withContext ActivationResult.Error("This license is for a different project ($licProjectId)")
+            val status = fields.optJSONObject("status")?.optString("stringValue", "") ?: ""
+            if (status == "APPROVED") {
+                val subExpiresAtObj = fields.optJSONObject("subscriptionExpiresAt")
+                val subExpiresAt = if (subExpiresAtObj != null && subExpiresAtObj.has("stringValue")) {
+                    subExpiresAtObj.optString("stringValue", "")
+                } else null
+
+                val plan = fields.optJSONObject("plan")?.optString("stringValue", "Snap Loom Pro") ?: "Snap Loom Pro"
+
+                // Save locally
+                prefs.edit()
+                    .putBoolean("is_approved", true)
+                    .putBoolean("is_pending_approval", false)
+                    .putBoolean("is_revoked", false)
+                    .putString("sub_expires_at", subExpiresAt)
+                    .putString("plan_name", plan)
+                    .apply()
+                return@withContext true
+            } else if (status == "REVOKED") {
+                prefs.edit()
+                    .putBoolean("is_approved", false)
+                    .putBoolean("is_revoked", true)
+                    .apply()
+            }
+            false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Legacy/Backup: Activates a manual License Key (e.g. SNAP-XXXX-YYYY).
+     */
+    suspend fun activateWithKey(inputKey: String): ActivationResult = withContext(Dispatchers.IO) {
+        val cleanKey = inputKey.trim().uppercase()
+        if (cleanKey.isBlank()) return@withContext ActivationResult.Error("Enter a valid key")
+
+        val deviceId = getDeviceId()
+        try {
+            val url = URL("$FIRESTORE_LICENSES_URL/$cleanKey?key=$API_KEY")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
             }
 
-            // 2. Check Status
+            if (conn.responseCode == 404) {
+                conn.disconnect()
+                return@withContext ActivationResult.Error("Key not found")
+            }
+
+            val reader = BufferedReader(InputStreamReader(conn.inputStream))
+            val sb = StringBuilder()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) sb.append(line)
+            reader.close()
+            conn.disconnect()
+
+            val fields = JSONObject(sb.toString()).optJSONObject("fields")
+                ?: return@withContext ActivationResult.Error("Invalid key")
+
             val status = fields.optJSONObject("status")?.optString("stringValue", "ACTIVE") ?: "ACTIVE"
-            if (status == "REVOKED") {
-                saveLicenseRevoked(cleanKey)
-                return@withContext ActivationResult.Error("This license has been revoked / suspended by admin")
-            }
+            if (status == "REVOKED") return@withContext ActivationResult.Error("Key is revoked")
 
-            // 3. Check Expiry
             val expiresAtObj = fields.optJSONObject("expiresAt")
             val expiresAt = if (expiresAtObj != null && expiresAtObj.has("stringValue")) {
                 expiresAtObj.optString("stringValue", "")
             } else null
-            val daysRemaining = expiresAt?.let { calculateDaysRemaining(it) }
-            if (daysRemaining != null && daysRemaining < 0) {
-                return@withContext ActivationResult.Error("This license has expired. Contact Prince to renew.")
-            }
 
-            // 4. Device Binding Check
-            val boundDevicesArray = fields.optJSONObject("boundDevices")?.optJSONObject("arrayValue")?.optJSONArray("values")
-            val existingDevices = mutableListOf<String>()
-            if (boundDevicesArray != null) {
-                for (i in 0 until boundDevicesArray.length()) {
-                    val dVal = boundDevicesArray.getJSONObject(i).optString("stringValue", "")
-                    if (dVal.isNotBlank()) existingDevices.add(dVal)
-                }
-            }
+            prefs.edit()
+                .putBoolean("is_approved", true)
+                .putBoolean("is_pending_approval", false)
+                .putBoolean("is_revoked", false)
+                .putString("sub_expires_at", expiresAt)
+                .putString("plan_name", "Licensed ($cleanKey)")
+                .apply()
 
-            val maxDevices = fields.optJSONObject("maxDevices")?.optString("integerValue", "1")?.toIntOrNull() ?: 1
-
-            if (!existingDevices.contains(deviceId)) {
-                if (existingDevices.size >= maxDevices) {
-                    return@withContext ActivationResult.Error(
-                        "Device limit exceeded! This license is already bound to device: ${existingDevices.firstOrNull()}"
-                    )
-                }
-
-                // Bind device in Firestore
-                existingDevices.add(deviceId)
-                bindDeviceToFirestore(cleanKey, existingDevices)
-            }
-
-            val clientName = fields.optJSONObject("clientName")?.optString("stringValue", "Creator") ?: "Creator"
-
-            // Save to local SharedPreferences
-            saveLocalLicense(cleanKey, clientName, expiresAt)
-
-            ActivationResult.Success(
-                message = "Snap Loom Activated for $clientName!",
-                daysRemaining = daysRemaining
-            )
+            ActivationResult.Success("Key activated successfully!")
         } catch (e: Exception) {
-            e.printStackTrace()
-            ActivationResult.Error("Connection error: ${e.localizedMessage ?: "Check your internet"}")
+            ActivationResult.Error("Connection error: ${e.message}")
         }
     }
 
-    private fun bindDeviceToFirestore(key: String, devices: List<String>) {
-        try {
-            val url = URL("$FIRESTORE_BASE_URL/$key?updateMask.fieldPaths=boundDevices&key=$API_KEY")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "PATCH"
-                connectTimeout = 8000
-                readTimeout = 8000
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json")
-            }
-
-            val valuesArr = JSONArray()
-            for (d in devices) {
-                valuesArr.put(JSONObject().put("stringValue", d))
-            }
-            val payload = JSONObject().put(
-                "fields",
-                JSONObject().put(
-                    "boundDevices",
-                    JSONObject().put("arrayValue", JSONObject().put("values", valuesArr))
-                )
-            )
-
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(payload.toString())
-            writer.flush()
-            writer.close()
-
-            conn.responseCode
-            conn.disconnect()
-        } catch (e: Exception) {
-            e.printStackTrace()
+    private fun getIsoTimestamp(timeMs: Long): String {
+        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
         }
-    }
-
-    private fun saveLocalLicense(key: String, clientName: String, expiresAt: String?) {
-        prefs.edit()
-            .putString("key", key)
-            .putString("client_name", clientName)
-            .putString("expires_at", expiresAt)
-            .putBoolean("is_revoked", false)
-            .putLong("activated_at", System.currentTimeMillis())
-            .apply()
-    }
-
-    private fun saveLicenseRevoked(key: String) {
-        prefs.edit()
-            .putString("key", key)
-            .putBoolean("is_revoked", true)
-            .apply()
-    }
-
-    fun removeLicense() {
-        prefs.edit().clear().apply()
+        return format.format(Date(timeMs))
     }
 
     private fun calculateDaysRemaining(isoDateString: String): Int? {

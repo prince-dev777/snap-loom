@@ -55,7 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.size
 import com.reactionstudio.screenrecorder.utils.AppUpdateManager
 import com.reactionstudio.screenrecorder.utils.LicenseManager
-import com.reactionstudio.screenrecorder.utils.LicenseStatus
+import com.reactionstudio.screenrecorder.utils.AppAccessState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -352,45 +352,33 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
             }
         }
 
-        // License & Hardware Lock Section
+        // Snap Loom VIP Access Section (User-friendly, no scary device IDs)
         val licenseManager = remember { LicenseManager.getInstance(context) }
-        val licenseStatus = remember { licenseManager.getLicenseStatus() }
-        val deviceId = remember { licenseManager.getDeviceId() }
+        val accessState = remember { licenseManager.getAppAccessState() }
 
         SettingsCard(
-            title = "Snap Loom License & Device Lock",
+            title = "Snap Loom VIP Access",
             icon = Icons.Default.Shield,
-            subtitle = when (licenseStatus) {
-                is LicenseStatus.Active -> "Licensed to ${licenseStatus.clientName} (${licenseStatus.key})"
-                is LicenseStatus.Expired -> "License Expired"
-                is LicenseStatus.Revoked -> "License Revoked"
-                is LicenseStatus.Unlicensed -> "Unlicensed Copy"
+            subtitle = when (accessState) {
+                is com.reactionstudio.screenrecorder.utils.AppAccessState.TrialActive ->
+                    "Free VIP Trial Active (${accessState.daysRemaining} days remaining)"
+                is com.reactionstudio.screenrecorder.utils.AppAccessState.Subscribed ->
+                    if (accessState.daysRemaining != null) "Snap Loom Pro (${accessState.daysRemaining} days left)" else "Snap Loom Pro (Lifetime)"
+                is com.reactionstudio.screenrecorder.utils.AppAccessState.PendingApproval ->
+                    "Activation Pending Approval"
+                else -> "Trial Ended"
             }
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Device ID: $deviceId",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = when (licenseStatus) {
-                            is LicenseStatus.Active -> if (licenseStatus.daysRemaining != null) "${licenseStatus.daysRemaining} days left" else "Lifetime"
-                            else -> "Inactive"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (licenseStatus is LicenseStatus.Active) Color(0xFF10B981) else Color(0xFFEF4444)
-                    )
-                }
-
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "This installation is cryptographically bound to this phone via Firebase Master Hub.",
+                    text = when (accessState) {
+                        is com.reactionstudio.screenrecorder.utils.AppAccessState.TrialActive ->
+                            "You are currently on the 3-day free trial. Enjoy all 60 FPS recording and Facecam reaction tools!"
+                        is com.reactionstudio.screenrecorder.utils.AppAccessState.Subscribed ->
+                            "Full Pro Access unlocked. All recording, Facecam and editing features are active."
+                        else ->
+                            "Free trial period has ended. Request activation to unlock full recording capabilities."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -1,0 +1,90 @@
+================================================================================
+          ANDROID APP BUILD & COMPILE COMMANDS GUIDE (Screen Reaction Studio)
+================================================================================
+
+1. IS APP KO BANANE AUR COMPILE KARNE KE LIYE CHALAYE GAYE COMMANDS:
+--------------------------------------------------------------------------------
+(a) Android CLI Tool Install Kiya:
+    curl.exe -fsSL https://dl.google.com/android/cli/latest/windows_x86_64/install.cmd -o "%TEMP%\i.cmd" && "%TEMP%\i.cmd"
+
+(b) Project Create Kiya (Jetpack Compose + Kotlin):
+    android create empty-activity --name="ScreenReactionStudio" --application-id="com.reactionstudio.screenrecorder" --min-sdk=26 --force --output="."
+
+(c) Required Android SDK Platform 36 Install Kiya:
+    android sdk install platforms/android-36
+
+(d) Kotlin Code Compilation Check Kiya:
+    gradlew.bat compileDebugKotlin
+
+(e) Full Debug APK Assemble (Build & Package) Kiya:
+    gradlew.bat assembleDebug
+
+(f) Generated APK Verify Kiya:
+    android describe
+    (Output File: app/build/outputs/apk/debug/app-debug.apk)
+
+
+================================================================================
+2. NORMALLY ANDROID APP ME USE HONE WALE DAILY COMMANDS (CHEAT SHEET):
+================================================================================
+[Terminal / Command Prompt me project root folder ke andar ye run karein]
+
+* Sirf Code Compile Test Karne Ke Liye (Fast):
+  .\gradlew compileDebugKotlin
+
+* Debug APK Banane Ke Liye (Testing Ke Liye):
+  .\gradlew assembleDebug
+
+* Release / Production APK Banane Ke Liye:
+  .\gradlew assembleRelease
+
+* Purana Cache Aur Build Clean Karne Ke Liye (Jab Koi Error Fasa Ho):
+  .\gradlew clean
+
+* Clean Karke Fresh APK Banane Ke Liye:
+  .\gradlew clean assembleDebug
+
+* Gradle Daemon Stop Karne Ke Liye (RAM Free Karne Ke Liye):
+  .\gradlew --stop
+
+* Connected Android Phone Check Karne Ke Liye:
+  adb devices
+
+* Phone Me Direct APK Install Karne Ke Liye:
+  adb install -r app\build\outputs\apk\debug\app-debug.apk
+
+* App Ko Phone Se Uninstall Karne Ke Liye:
+  adb uninstall com.reactionstudio.screenrecorder
+
+* Live Error / App Logs Check Karne Ke Liye:
+  adb logcat -s "ScreenReactionStudio"
+
+
+================================================================================
+3. MAINE YE APP KAISE BANAYA? (KAM SHABDON ME SUMMARY):
+================================================================================
+(1) Screen Recorder Engine:
+    Android ke MediaProjection API aur MediaRecorder ka use kiya. Isse screen
+    ke sath microphone ki audio (live commentary) H.264 format me record hoti hai.
+
+(2) Floating Facecam (Reaction Camera):
+    Android ke WindowManager (SYSTEM_ALERT_WINDOW) aur CameraX API ka use kiya.
+    Isse camera ka live preview screen ke upar ek draggable circular bubble me
+    dikhta hai, jise user screen par kahi bhi move kar sakta hai aur front/back
+    switch kar sakta hai.
+
+(3) Floating Controls Bar:
+    Screen par ek chhota floating widget diya jo recording ke waqt timer, pause,
+    resume, stop aur camera on/off button provide karta hai.
+
+(4) Modern UI & Settings:
+    100% Jetpack Compose (Material 3) me Studio, Settings aur Gallery tabs banaye:
+    - FPS (60, 30, 24)
+    - Quality (1080p, 720p, 480p)
+    - Bitrate (16 Mbps, 10 Mbps, 6 Mbps)
+
+(5) Video Saving & MediaStore:
+    Recorded videos ko seedhe phone ke 'Movies/ReactionScreenRecordings' folder
+    me save karwaya taaki videos phone ki Gallery me turant dikhein aur YouTube
+    par direct share ho sakein.
+================================================================================

@@ -17,7 +17,8 @@
   * Android 14+ Compliant Foreground Service (`mediaProjection`, `camera`, `microphone`)
   * Floating WindowManager Overlays (Draggable Facecam, Live Brush Tool, Quick Controls Pill)
   * Firebase Firestore REST API (Cloud Licensing & 1-Click Device Auto-Unlock)
-  * Semantic OTA Auto-Updater (GitHub Releases API)
+  * Semantic OTA Auto-Updater (Instant Home Pop-up + 3-Cancel Mandatory Enforcement)
+  * Android 13/14/15 & Xiaomi HyperOS Restricted Settings Assistant (App Info 3-dots unblocker)
 
 ### Key Directory Structure
 ```

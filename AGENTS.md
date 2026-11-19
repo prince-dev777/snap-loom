@@ -161,3 +161,20 @@ To release an update (e.g., `v1.2.0`):
 * **Duplicate Icon Resources:** Android AAPT2 fails if both `.png` and `.webp` of the same name exist in `res/mipmap-*`. Always remove conflicting `.webp` files when replacing icons.
 * **Vercel Browser Cache:** If `/admin` shows "Incorrect password" after updating credentials, the browser is serving stale cached CRA bundles. Tell user to hard-refresh with `Ctrl + Shift + R`.
 * **Firestore REST API:** Raw Android REST calls to Firestore require `?key=$API_KEY` query parameter for unauthenticated client endpoints matching public read/write rules.
+
+---
+
+## 7. Mandatory Security & Zero-Plaintext Secrets Policy (CRITICAL)
+
+> **MANDATORY FOR ALL AGENTS & DEVELOPERS:**  
+> Any credential, password, secret key, token, or sensitive identifier must **NEVER** be committed in plaintext or exposed in the UI.
+
+1. **Zero UI Leaks / No Hints in Placeholders:**
+   * **STRICT RULE:** Never include passwords, secrets, or hints inside UI inputs (e.g. `placeholder="Enter password (hint: xyz)"` is strictly prohibited). Placeholders must be generic: `placeholder="Enter administrator password..."`.
+2. **Web / Portfolio Security (.env & SHA-256):**
+   * All API keys, Firebase configs, and passwords must be loaded via `.env` (`import.meta.env.VITE_*`).
+   * `.env`, `.env.*`, and `*.env` must always be listed in `.gitignore`. Provide `.env.example` with blank keys for documentation.
+   * Admin passwords in client-side code must be checked via **one-way SHA-256 cryptographic hashing** (`crypto.subtle.digest`), never via raw plaintext comparison.
+3. **Android Client Obfuscation:**
+   * Public client keys (like Firebase Web API key) must be obfuscated/encoded (e.g. dynamic Base64 runtime decoding) to prevent static regex security scanners (e.g. GitGuardian) from raising alarms.
+   * Never commit service account private keys or keystore passwords.

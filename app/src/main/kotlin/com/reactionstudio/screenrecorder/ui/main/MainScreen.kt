@@ -1247,6 +1247,7 @@ fun RestrictedSettingsDialog(
 ) {
     val context = LocalContext.current
     val isXiaomi = remember { PermissionHelper.isXiaomiOrPoco() }
+    val isRealme = remember { PermissionHelper.isRealmeOrOppoOrOnePlus() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1260,17 +1261,17 @@ fun RestrictedSettingsDialog(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
-                Text("Fix 'Denied Access' (HyperOS)")
+                Text(if (isRealme) "Fix 'App was denied access' (Realme/Oppo)" else if (isXiaomi) "Fix 'Denied Access' (HyperOS)" else "Fix Restricted Settings (Android 14)")
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Xiaomi (HyperOS) me sideloaded apps ke liye Overlay aur Pop-up windows locked rehte hain.",
+                    text = "Android 13/14 (Realme UI / ColorOS / HyperOS) me sideloaded APK ke liye Overlay aur Pop-up windows locked rehte hain.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = "Isko 10 second me aise unlock karein:",
+                    text = "Isko 5 second me aise unlock karein:",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -1282,14 +1283,20 @@ fun RestrictedSettingsDialog(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         .padding(10.dp)
                 ) {
-                    Text("1️⃣ Neeche '1. Open App Info' button dabayein.", style = MaterialTheme.typography.bodySmall)
-                    Text("2️⃣ Top-right me 3-Dots (⋮) par tap karein. Agar 3-dots na mile, toh screen ke bilkul NEECHE (Bottom) scroll karein.", style = MaterialTheme.typography.bodySmall)
-                    Text("3️⃣ 'Allow restricted settings' (प्रतिबंधित सेटिंग्स) par tap karke Fingerprint/PIN confirm karein.", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    Text("4️⃣ '2. Open Overlay' se Snap Loom ko ON karein.", style = MaterialTheme.typography.bodySmall)
+                    Text("1️⃣ Jo popup aaya hai, uspe 'Close' dabayein.", style = MaterialTheme.typography.bodySmall)
+                    Text("2️⃣ Neeche '1. Open App Info' button dabayein (ya Home screen par Snap Loom ko daba ke 'App info' kholein).", style = MaterialTheme.typography.bodySmall)
+                    Text("3️⃣ Top-right me 3-Dots (⋮) par tap karein -> 'Allow restricted settings' (प्रतिबंधित सेटिंग्स की अनुमति दें) select karein.", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Text("4️⃣ Apna Fingerprint ya Screen PIN lagayein.", style = MaterialTheme.typography.bodySmall)
+                    Text("5️⃣ Ab '2. Open Overlay' dabayein -> Toggle 100% ON ho jayega!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     if (isXiaomi) {
-                        Text("5️⃣ Xiaomi 'Other Permissions' me 'Display pop-up windows in background' ko Allow karein.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text("6️⃣ Xiaomi users: 'Other Permissions' me 'Display pop-up windows in background' ko Allow karein.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
+                Text(
+                    text = "💡 Tip: Bina overlay ke bhi Screen Recording notification bar se 100% chalegi!",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         },
         confirmButton = {

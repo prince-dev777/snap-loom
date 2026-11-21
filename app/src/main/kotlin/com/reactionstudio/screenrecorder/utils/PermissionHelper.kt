@@ -82,6 +82,11 @@ object PermissionHelper {
         return m.contains("xiaomi") || m.contains("redmi") || m.contains("poco")
     }
 
+    fun isRealmeOrOppoOrOnePlus(): Boolean {
+        val m = Build.MANUFACTURER.lowercase()
+        return m.contains("realme") || m.contains("oppo") || m.contains("oneplus")
+    }
+
     fun openXiaomiOtherPermissions(context: Context): Boolean {
         return try {
             val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {

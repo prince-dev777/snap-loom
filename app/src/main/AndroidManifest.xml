@@ -81,6 +81,16 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Auto-Restart App after In-App Update is installed -->
+        <receiver
+            android:name=".receiver.AppUpdateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

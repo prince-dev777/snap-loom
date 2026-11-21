@@ -76,6 +76,103 @@ class LicenseManager(private val context: Context) {
         return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     }
 
+    fun getInstallSource(): String {
+        return try {
+            val pm = context.packageManager
+            val installerPackage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val sourceInfo = pm.getInstallSourceInfo(context.packageName)
+                sourceInfo.installingPackageName ?: sourceInfo.initiatingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(context.packageName)
+            }
+
+            when {
+                installerPackage.isNullOrBlank() -> "Direct APK / File Manager"
+                installerPackage.contains("whatsapp", ignoreCase = true) -> "WhatsApp"
+                installerPackage.contains("telegram", ignoreCase = true) -> "Telegram"
+                installerPackage.contains("chrome", ignoreCase = true) -> "Google Chrome"
+                installerPackage.contains("browser", ignoreCase = true) -> "Web Browser"
+                installerPackage.contains("vending", ignoreCase = true) -> "Google Play"
+                installerPackage.contains("packageinstaller", ignoreCase = true) -> "Package Installer"
+                else -> installerPackage
+            }
+        } catch (e: Exception) {
+            "Direct APK"
+        }
+    }
+
+    fun getOsVersion(): String {
+        return "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+    }
+
+    fun getAppVersion(): String {
+        return try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            "v${pInfo.versionName}"
+        } catch (e: Exception) {
+            "v1.4.1"
+        }
+    }
+
+    /**
+     * Resolves user City, State, Country & IP in the background using HTTPS geolocation API (with timeout & caching).
+     */
+    private fun fetchGeoLocation(): Pair<String, String> {
+        val cachedLoc = prefs.getString("cached_location", null)
+        val cachedIp = prefs.getString("cached_ip", null)
+        val lastGeoCheck = prefs.getLong("last_geo_check", 0L)
+        if (cachedLoc != null && cachedIp != null && System.currentTimeMillis() - lastGeoCheck < 12 * 60 * 60 * 1000L) {
+            return Pair(cachedLoc, cachedIp)
+        }
+
+        return try {
+            val url = URL("https://ipwho.is/")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 4000
+                readTimeout = 4000
+                setRequestProperty("Accept", "application/json")
+            }
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                val sb = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    sb.append(line)
+                }
+                reader.close()
+                conn.disconnect()
+
+                val json = JSONObject(sb.toString())
+                val ip = json.optString("ip", "Unknown IP")
+                val city = json.optString("city", "")
+                val region = json.optString("region", "")
+                val country = json.optString("country", "")
+
+                val location = when {
+                    city.isNotBlank() && region.isNotBlank() -> "$city, $region ($country)"
+                    city.isNotBlank() -> "$city, $country"
+                    country.isNotBlank() -> country
+                    else -> "Unknown Location"
+                }
+
+                prefs.edit()
+                    .putString("cached_location", location)
+                    .putString("cached_ip", ip)
+                    .putLong("last_geo_check", System.currentTimeMillis())
+                    .apply()
+
+                Pair(location, ip)
+            } else {
+                conn.disconnect()
+                Pair(cachedLoc ?: "Unknown Location", cachedIp ?: "Unknown IP")
+            }
+        } catch (e: Exception) {
+            Pair(cachedLoc ?: "Unknown Location", cachedIp ?: "Unknown IP")
+        }
+    }
+
     /**
      * Initializes or reads first launch time for the 3-day free trial.
      */
@@ -141,11 +238,15 @@ class LicenseManager(private val context: Context) {
 
     /**
      * Silently registers the device to Firestore on app open so Prince can see it in Admin Dashboard,
-     * and syncs any approved VIP plan from the cloud.
+     * updates location, IP, and install source, and syncs any approved VIP plan from the cloud.
      */
     suspend fun silentSyncWithCloud(): Unit = withContext(Dispatchers.IO) {
         val deviceId = getDeviceId()
         val model = getDeviceModel()
+        val installSource = getInstallSource()
+        val osVersion = getOsVersion()
+        val appVersion = getAppVersion()
+        val (location, ip) = fetchGeoLocation()
         val nowIso = getIsoTimestamp(System.currentTimeMillis())
 
         try {
@@ -185,9 +286,38 @@ class LicenseManager(private val context: Context) {
                         prefs.edit().putBoolean("is_revoked", true).apply()
                     }
                 }
+
+                // Update real-time metadata (location, IP, source, last seen) without overwriting status/plan
+                try {
+                    val updateUrl = "$FIRESTORE_DEVICES_URL/$deviceId?updateMask.fieldPaths=lastSeenAt&updateMask.fieldPaths=location&updateMask.fieldPaths=ip&updateMask.fieldPaths=installSource&updateMask.fieldPaths=osVersion&updateMask.fieldPaths=appVersion&key=$API_KEY"
+                    val patchConn = (URL(updateUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "PATCH"
+                        connectTimeout = 8000
+                        readTimeout = 8000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                    }
+                    val patchFields = JSONObject().apply {
+                        put("lastSeenAt", JSONObject().put("stringValue", nowIso))
+                        put("location", JSONObject().put("stringValue", location))
+                        put("ip", JSONObject().put("stringValue", ip))
+                        put("installSource", JSONObject().put("stringValue", installSource))
+                        put("osVersion", JSONObject().put("stringValue", osVersion))
+                        put("appVersion", JSONObject().put("stringValue", appVersion))
+                    }
+                    val writer = OutputStreamWriter(patchConn.outputStream)
+                    writer.write(JSONObject().put("fields", patchFields).toString())
+                    writer.flush()
+                    writer.close()
+                    patchConn.responseCode
+                    patchConn.disconnect()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
             } else if (code == HttpURLConnection.HTTP_NOT_FOUND) {
                 conn.disconnect()
-                // Device not in Firestore yet -> Register silently as PENDING so Prince sees it in Admin Panel
+                // Device not in Firestore yet -> Register silently as PENDING with full metadata
                 val patchConn = (URL("$FIRESTORE_DEVICES_URL/$deviceId?key=$API_KEY").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PATCH"
                     connectTimeout = 10000
@@ -202,7 +332,13 @@ class LicenseManager(private val context: Context) {
                     put("projectId", JSONObject().put("stringValue", TARGET_APP_PROJECT))
                     put("status", JSONObject().put("stringValue", "PENDING"))
                     put("requestedAt", JSONObject().put("stringValue", nowIso))
+                    put("lastSeenAt", JSONObject().put("stringValue", nowIso))
                     put("plan", JSONObject().put("stringValue", "3-Day VIP Trial"))
+                    put("location", JSONObject().put("stringValue", location))
+                    put("ip", JSONObject().put("stringValue", ip))
+                    put("installSource", JSONObject().put("stringValue", installSource))
+                    put("osVersion", JSONObject().put("stringValue", osVersion))
+                    put("appVersion", JSONObject().put("stringValue", appVersion))
                 }
                 val payload = JSONObject().put("fields", fields)
 
@@ -226,6 +362,10 @@ class LicenseManager(private val context: Context) {
     suspend fun requestDeviceActivation(): ActivationResult = withContext(Dispatchers.IO) {
         val deviceId = getDeviceId()
         val model = getDeviceModel()
+        val installSource = getInstallSource()
+        val osVersion = getOsVersion()
+        val appVersion = getAppVersion()
+        val (location, ip) = fetchGeoLocation()
         val nowIso = getIsoTimestamp(System.currentTimeMillis())
 
         try {
@@ -244,6 +384,12 @@ class LicenseManager(private val context: Context) {
                 put("projectId", JSONObject().put("stringValue", TARGET_APP_PROJECT))
                 put("status", JSONObject().put("stringValue", "PENDING"))
                 put("requestedAt", JSONObject().put("stringValue", nowIso))
+                put("lastSeenAt", JSONObject().put("stringValue", nowIso))
+                put("location", JSONObject().put("stringValue", location))
+                put("ip", JSONObject().put("stringValue", ip))
+                put("installSource", JSONObject().put("stringValue", installSource))
+                put("osVersion", JSONObject().put("stringValue", osVersion))
+                put("appVersion", JSONObject().put("stringValue", appVersion))
             }
             val payload = JSONObject().put("fields", fields)
 

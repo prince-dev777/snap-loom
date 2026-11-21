@@ -169,13 +169,18 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
             }
         }
 
-        // Audio Section
+        // Studio Audio & Noise Shield Section
         SettingsCard(
-            title = "Audio Recording Source",
+            title = "Studio Audio & AI Noise Shield",
             icon = Icons.Default.Mic,
-            subtitle = "Choose microphone commentary or internal game/video sound"
+            subtitle = "Real-time AI Noise Cancellation & 48 kHz Broadcast Master Audio"
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    text = "Audio Recording Source",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -185,6 +190,56 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                             selected = config.audioMode == mode,
                             onClick = { viewModel.updateAudioMode(mode) },
                             label = { Text(mode.displayName) }
+                        )
+                    }
+                }
+
+                if (config.audioMode != AudioSourceMode.MUTE) {
+                    // AI Studio Noise Shield Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = "🎙️ AI Studio Noise Shield",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Kills ceiling fan, AC, and room echo in real-time using dual-mic phase cancellation.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = config.enableNoiseShield,
+                            onCheckedChange = { viewModel.updateNoiseShield(it) }
+                        )
+                    }
+
+                    // Studio 48kHz HD Audio Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(
+                                text = "💎 48 kHz Broadcast Master (256 kbps)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Deep podcast vocal warmth and clarity (upgrades from 128 kbps to 256 kbps AAC).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = config.enableStudioHdAudio,
+                            onCheckedChange = { viewModel.updateStudioHdAudio(it) }
                         )
                     }
                 }

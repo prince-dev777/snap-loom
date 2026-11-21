@@ -199,6 +199,14 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         prefsManager.updateConfig(config.value.copy(showFloatingControls = show))
     }
 
+    fun updateNoiseShield(enabled: Boolean) {
+        prefsManager.updateConfig(config.value.copy(enableNoiseShield = enabled))
+    }
+
+    fun updateStudioHdAudio(enabled: Boolean) {
+        prefsManager.updateConfig(config.value.copy(enableStudioHdAudio = enabled))
+    }
+
     fun toggleFacecamPreview(context: Context) {
         if (!PermissionHelper.hasOverlayPermission(context) || !PermissionHelper.hasCameraPermission(context)) {
             return

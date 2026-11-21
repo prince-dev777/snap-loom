@@ -61,6 +61,9 @@ class PreferencesManager(context: Context) {
         val countName = prefs.getString(KEY_COUNTDOWN, CountdownOption.THREE_SEC.name) ?: CountdownOption.THREE_SEC.name
         val countdown = runCatching { CountdownOption.valueOf(countName) }.getOrDefault(CountdownOption.THREE_SEC)
 
+        val noiseShield = prefs.getBoolean(KEY_ENABLE_NOISE_SHIELD, true)
+        val studioHdAudio = prefs.getBoolean(KEY_ENABLE_STUDIO_HD_AUDIO, true)
+
         return RecordingConfig(
             resolution = resolution,
             fps = fps,
@@ -75,7 +78,9 @@ class PreferencesManager(context: Context) {
             facecamBorderColor = facecamBorderColor,
             cameraLens = cameraLens,
             showFloatingControls = showControls,
-            countdown = countdown
+            countdown = countdown,
+            enableNoiseShield = noiseShield,
+            enableStudioHdAudio = studioHdAudio
         )
     }
 
@@ -95,6 +100,8 @@ class PreferencesManager(context: Context) {
             putString(KEY_CAMERA_LENS, newConfig.cameraLens.name)
             putBoolean(KEY_SHOW_FLOATING_CONTROLS, newConfig.showFloatingControls)
             putString(KEY_COUNTDOWN, newConfig.countdown.name)
+            putBoolean(KEY_ENABLE_NOISE_SHIELD, newConfig.enableNoiseShield)
+            putBoolean(KEY_ENABLE_STUDIO_HD_AUDIO, newConfig.enableStudioHdAudio)
             apply()
         }
         _configFlow.value = newConfig
@@ -141,6 +148,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_CAMERA_LENS = "pref_camera_lens"
         private const val KEY_SHOW_FLOATING_CONTROLS = "pref_show_floating_controls"
         private const val KEY_COUNTDOWN = "pref_countdown"
+        private const val KEY_ENABLE_NOISE_SHIELD = "pref_enable_noise_shield"
+        private const val KEY_ENABLE_STUDIO_HD_AUDIO = "pref_enable_studio_hd_audio"
 
         @Volatile
         private var INSTANCE: PreferencesManager? = null

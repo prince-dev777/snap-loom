@@ -76,5 +76,7 @@ data class RecordingConfig(
     val facecamBorderColor: FacecamBorderColor = FacecamBorderColor.RED,
     val cameraLens: CameraLens = CameraLens.FRONT,
     val showFloatingControls: Boolean = true,
-    val countdown: CountdownOption = CountdownOption.THREE_SEC
+    val countdown: CountdownOption = CountdownOption.THREE_SEC,
+    val enableNoiseShield: Boolean = true,
+    val enableStudioHdAudio: Boolean = true
 )

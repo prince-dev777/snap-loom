@@ -352,14 +352,27 @@ class ScreenRecordService : LifecycleService() {
 
         try {
             if (shouldRecordAudio) {
-                val audioSource = if (currentConfig.audioMode == com.reactionstudio.screenrecorder.model.AudioSourceMode.INTERNAL &&
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                ) {
-                    MediaRecorder.AudioSource.VOICE_RECOGNITION
+                val audioSource = if (currentConfig.enableNoiseShield) {
+                    // Triggers secondary noise-canceling mic & hardware Qualcomm/MediaTek DSP noise reduction
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && currentConfig.audioMode == com.reactionstudio.screenrecorder.model.AudioSourceMode.INTERNAL) {
+                        MediaRecorder.AudioSource.VOICE_RECOGNITION
+                    } else {
+                        MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                    }
                 } else {
-                    MediaRecorder.AudioSource.MIC
+                    if (currentConfig.audioMode == com.reactionstudio.screenrecorder.model.AudioSourceMode.INTERNAL &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    ) {
+                        MediaRecorder.AudioSource.VOICE_RECOGNITION
+                    } else {
+                        MediaRecorder.AudioSource.MIC
+                    }
                 }
-                recorder.setAudioSource(audioSource)
+                try {
+                    recorder.setAudioSource(audioSource)
+                } catch (_: Exception) {
+                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                }
             }
             recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
             recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -367,8 +380,10 @@ class ScreenRecordService : LifecycleService() {
             recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             if (shouldRecordAudio) {
                 recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                recorder.setAudioEncodingBitRate(128_000)
-                recorder.setAudioSamplingRate(44100)
+                val audioBitrate = if (currentConfig.enableStudioHdAudio) 256_000 else 128_000
+                val samplingRate = if (currentConfig.enableStudioHdAudio) 48_000 else 44_100
+                recorder.setAudioEncodingBitRate(audioBitrate)
+                recorder.setAudioSamplingRate(samplingRate)
             }
 
             recorder.setVideoSize(recordWidth, recordHeight)

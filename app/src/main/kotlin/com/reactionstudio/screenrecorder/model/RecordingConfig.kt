@@ -78,5 +78,10 @@ data class RecordingConfig(
     val showFloatingControls: Boolean = true,
     val countdown: CountdownOption = CountdownOption.THREE_SEC,
     val enableNoiseShield: Boolean = true,
-    val enableStudioHdAudio: Boolean = true
+    val enableStudioHdAudio: Boolean = true,
+    val micVolumeGain: Float = 1.0f,
+    val enableTeleprompter: Boolean = false,
+    val enableCustomWatermark: Boolean = false,
+    val customWatermarkText: String = "@SnapLoomCreator",
+    val ghostMode: Boolean = false
 )

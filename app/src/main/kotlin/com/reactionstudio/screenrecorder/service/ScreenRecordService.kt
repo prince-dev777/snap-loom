@@ -33,6 +33,7 @@ import com.reactionstudio.screenrecorder.model.VideoResolution
 import com.reactionstudio.screenrecorder.overlay.BrushOverlayManager
 import com.reactionstudio.screenrecorder.overlay.FacecamOverlayManager
 import com.reactionstudio.screenrecorder.overlay.FloatingControlsManager
+import com.reactionstudio.screenrecorder.overlay.TeleprompterOverlayManager
 import com.reactionstudio.screenrecorder.utils.ShakeDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,6 +58,7 @@ class ScreenRecordService : LifecycleService() {
     private var facecamManager: FacecamOverlayManager? = null
     private var controlsManager: FloatingControlsManager? = null
     private var brushManager: BrushOverlayManager? = null
+    private var teleprompterManager: TeleprompterOverlayManager? = null
     private var shakeDetector: ShakeDetector? = null
 
     private var currentConfig: RecordingConfig = RecordingConfig()
@@ -248,10 +250,24 @@ class ScreenRecordService : LifecycleService() {
             if (currentConfig.enableFacecam) {
                 showFacecam()
             }
-            if (currentConfig.showFloatingControls) {
+            if (currentConfig.showFloatingControls && !currentConfig.ghostMode) {
                 controlsManager?.showControls()
             }
+            if (currentConfig.enableTeleprompter) {
+                showTeleprompter()
+            }
         }
+    }
+
+    private fun showTeleprompter() {
+        if (teleprompterManager == null) {
+            teleprompterManager = TeleprompterOverlayManager(this)
+        }
+        teleprompterManager?.showTeleprompter()
+    }
+
+    private fun hideTeleprompter() {
+        teleprompterManager?.hideTeleprompter()
     }
 
     private fun showFacecam() {
@@ -546,6 +562,7 @@ class ScreenRecordService : LifecycleService() {
         brushManager?.hideBrushOverlay()
         facecamManager?.hideFacecam()
         controlsManager?.hideControls()
+        teleprompterManager?.hideTeleprompter()
 
         // Finalize MediaStore entry
         currentVideoUri?.let { uri ->

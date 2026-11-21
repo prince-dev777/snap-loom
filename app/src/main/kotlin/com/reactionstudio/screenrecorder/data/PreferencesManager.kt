@@ -63,6 +63,11 @@ class PreferencesManager(context: Context) {
 
         val noiseShield = prefs.getBoolean(KEY_ENABLE_NOISE_SHIELD, true)
         val studioHdAudio = prefs.getBoolean(KEY_ENABLE_STUDIO_HD_AUDIO, true)
+        val micGain = prefs.getFloat(KEY_MIC_VOLUME_GAIN, 1.0f)
+        val teleprompter = prefs.getBoolean(KEY_ENABLE_TELEPROMPTER, false)
+        val watermark = prefs.getBoolean(KEY_ENABLE_WATERMARK, false)
+        val watermarkText = prefs.getString(KEY_WATERMARK_TEXT, "@SnapLoomCreator") ?: "@SnapLoomCreator"
+        val ghostMode = prefs.getBoolean(KEY_GHOST_MODE, false)
 
         return RecordingConfig(
             resolution = resolution,
@@ -80,7 +85,12 @@ class PreferencesManager(context: Context) {
             showFloatingControls = showControls,
             countdown = countdown,
             enableNoiseShield = noiseShield,
-            enableStudioHdAudio = studioHdAudio
+            enableStudioHdAudio = studioHdAudio,
+            micVolumeGain = micGain,
+            enableTeleprompter = teleprompter,
+            enableCustomWatermark = watermark,
+            customWatermarkText = watermarkText,
+            ghostMode = ghostMode
         )
     }
 
@@ -102,9 +112,32 @@ class PreferencesManager(context: Context) {
             putString(KEY_COUNTDOWN, newConfig.countdown.name)
             putBoolean(KEY_ENABLE_NOISE_SHIELD, newConfig.enableNoiseShield)
             putBoolean(KEY_ENABLE_STUDIO_HD_AUDIO, newConfig.enableStudioHdAudio)
+            putFloat(KEY_MIC_VOLUME_GAIN, newConfig.micVolumeGain)
+            putBoolean(KEY_ENABLE_TELEPROMPTER, newConfig.enableTeleprompter)
+            putBoolean(KEY_ENABLE_WATERMARK, newConfig.enableCustomWatermark)
+            putString(KEY_WATERMARK_TEXT, newConfig.customWatermarkText)
+            putBoolean(KEY_GHOST_MODE, newConfig.ghostMode)
             apply()
         }
         _configFlow.value = newConfig
+    }
+
+    fun hasAcceptedTerms(): Boolean {
+        return prefs.getBoolean(KEY_TERMS_ACCEPTED, false)
+    }
+
+    fun setTermsAccepted(accepted: Boolean) {
+        prefs.edit().putBoolean(KEY_TERMS_ACCEPTED, accepted).apply()
+    }
+
+    fun getReferralBonusDays(): Int {
+        return prefs.getInt(KEY_REFERRAL_BONUS_DAYS, 0)
+    }
+
+    fun addReferralBonusDays(days: Int): Int {
+        val current = getReferralBonusDays() + days
+        prefs.edit().putInt(KEY_REFERRAL_BONUS_DAYS, current).apply()
+        return current
     }
 
     fun getUpdateDismissCount(version: String): Int {
@@ -150,6 +183,13 @@ class PreferencesManager(context: Context) {
         private const val KEY_COUNTDOWN = "pref_countdown"
         private const val KEY_ENABLE_NOISE_SHIELD = "pref_enable_noise_shield"
         private const val KEY_ENABLE_STUDIO_HD_AUDIO = "pref_enable_studio_hd_audio"
+        private const val KEY_TERMS_ACCEPTED = "pref_terms_accepted"
+        private const val KEY_MIC_VOLUME_GAIN = "pref_mic_volume_gain"
+        private const val KEY_ENABLE_TELEPROMPTER = "pref_enable_teleprompter"
+        private const val KEY_ENABLE_WATERMARK = "pref_enable_watermark"
+        private const val KEY_WATERMARK_TEXT = "pref_watermark_text"
+        private const val KEY_GHOST_MODE = "pref_ghost_mode"
+        private const val KEY_REFERRAL_BONUS_DAYS = "pref_referral_bonus_days"
 
         @Volatile
         private var INSTANCE: PreferencesManager? = null

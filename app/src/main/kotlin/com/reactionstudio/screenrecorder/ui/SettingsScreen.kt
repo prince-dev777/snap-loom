@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -50,6 +51,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -242,6 +246,114 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                             onCheckedChange = { viewModel.updateStudioHdAudio(it) }
                         )
                     }
+
+                    // Dual Audio Mixer - Mic Volume Gain
+                    Text(
+                        text = "Mic Commentary Volume Gain",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.75f to "75% Soft", 1.0f to "100% Normal", 1.5f to "150% Boost", 2.0f to "200% Ultra").forEach { (gain, label) ->
+                            FilterChip(
+                                selected = config.micVolumeGain == gain,
+                                onClick = { viewModel.updateMicVolumeGain(gain) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Creator Studio Tools (Teleprompter, Ghost Mode, Watermark)
+        SettingsCard(
+            title = "Creator Studio Tools",
+            icon = Icons.Default.Widgets,
+            subtitle = "Floating Teleprompter, Ghost Mode & Custom Watermark"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Floating Teleprompter Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            text = "📜 Floating Script Teleprompter",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Auto-scrolling script over any game or video. Never forget your talking points!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = config.enableTeleprompter,
+                        onCheckedChange = { viewModel.updateEnableTeleprompter(it) }
+                    )
+                }
+
+                // Ghost Mode Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            text = "👻 Ghost Controls (Invisible Overlays)",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Hides floating buttons while recording so your final video looks 100% clean.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = config.ghostMode,
+                        onCheckedChange = { viewModel.updateGhostMode(it) }
+                    )
+                }
+
+                // Custom Channel Watermark Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(
+                            text = "🏷️ Custom Channel Watermark",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Embed your personal channel name or handle on recorded videos.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = config.enableCustomWatermark,
+                        onCheckedChange = { viewModel.updateEnableWatermark(it) }
+                    )
+                }
+
+                if (config.enableCustomWatermark) {
+                    OutlinedTextField(
+                        value = config.customWatermarkText,
+                        onValueChange = { viewModel.updateWatermarkText(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Channel Handle or Watermark Text") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 }
             }
         }
@@ -579,6 +691,63 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                     }
                 }
             }
+        }
+
+        // Legal Compliance & Privacy Terms Card
+        var showTermsDialog by remember { mutableStateOf(false) }
+
+        SettingsCard(
+            title = "Legal Compliance & Privacy Terms",
+            icon = Icons.Default.Security,
+            subtitle = "User Content Responsibility & 100% On-Device Privacy Agreement"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Snap Loom complies with strict digital content laws. All recordings are kept 100% locally on your phone. You retain full ownership and legal responsibility for your content.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedButton(
+                    onClick = { showTermsDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Read Terms of Service & Privacy Policy", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        if (showTermsDialog) {
+            AlertDialog(
+                onDismissRequest = { showTermsDialog = false },
+                title = { Text("Terms of Service & Privacy Agreement") },
+                text = {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("1. User Ownership & Legal Responsibility:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("You (the user) retain full ownership and sole legal responsibility for all screen and audio recordings created with Snap Loom. You agree NOT to capture unlawful, confidential, or copyrighted content without authorization.")
+
+                        Text("2. 100% On-Device Privacy Guarantee:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("Snap Loom does NOT upload, transmit, or inspect your video recordings. All video rendering, facecam overlays, and audio DSP are executed locally on your device hardware.")
+
+                        Text("3. Microphone & Camera Authorization:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("Microphone and Camera hardware are only accessed when you explicitly start recording or activate the facecam preview.")
+
+                        Text("4. Limitation of Developer Liability:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("By using this software, you release the developer from any claims, copyright notices, damages, or liabilities arising from the publication or distribution of your videos.")
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showTermsDialog = false }) {
+                        Text("I Understand & Agree")
+                    }
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))

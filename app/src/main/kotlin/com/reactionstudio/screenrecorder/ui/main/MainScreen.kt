@@ -2,6 +2,7 @@ package com.reactionstudio.screenrecorder.ui.main
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -44,6 +46,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,6 +79,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.reactionstudio.screenrecorder.model.RecordingState
 import com.reactionstudio.screenrecorder.ui.RecordingsScreen
 import com.reactionstudio.screenrecorder.ui.SettingsScreen
@@ -97,10 +102,21 @@ fun MainScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateFeedback by viewModel.updateFeedback.collectAsState()
+    var hasAcceptedTerms by remember { mutableStateOf(viewModel.hasAcceptedTerms()) }
 
     // Immediately check for updates when entering MainScreen
     LaunchedEffect(Unit) {
         viewModel.checkForUpdates(silent = true)
+    }
+
+    // Mandatory Terms & Privacy Consent Dialog
+    if (!hasAcceptedTerms) {
+        TermsAndConditionsConsentDialog(
+            onAccept = {
+                viewModel.acceptTerms()
+                hasAcceptedTerms = true
+            }
+        )
     }
 
     Scaffold(
@@ -353,6 +369,9 @@ fun StudioHomeTab(
     ) {
         // VIP / Trial Expiry Status Pill
         VipTimerBadge(context = context)
+
+        // Refer & Earn Pro (+7 Days) Card
+        ReferAndEarnCard(viewModel = viewModel)
 
         // New Update Available Alert Banner (right on Home Screen!)
         if (updateInfo?.isUpdateAvailable == true) {
@@ -1308,4 +1327,226 @@ fun RestrictedSettingsDialog(
         },
         dismissButton = {}
     )
+}
+
+@Composable
+fun TermsAndConditionsConsentDialog(onAccept: () -> Unit) {
+    var agreed by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Legal Terms & Privacy Consent",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Welcome to Snap Loom Studio! Before using the app, you must review and agree to our Terms of Service & Privacy Policy:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Card(
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "🛡️ 100% On-Device & Private",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "All screen recordings, camera facecam feeds, and audio commentary remain strictly on your local device. We never record, collect, upload, or transmit any video, audio, or screen data to any cloud or third-party server.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        Text(
+                            text = "⚖️ Sole User Legal Responsibility",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "You are solely and strictly responsible for the content you capture, broadcast, or share using Snap Loom. You must obtain consent before recording private conversations or third-party intellectual property.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        Text(
+                            text = "📑 Developer Indemnification",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "The developer (Prince / Reaction Studio) is held harmless and indemnified against any claims, copyright disputes, penalties, or damages arising from your usage or recordings.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { agreed = !agreed },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = agreed,
+                        onCheckedChange = { agreed = it }
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "I have read, understood, and agree to the Terms of Service, User Liability, and Privacy Policy.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onAccept,
+                enabled = agreed,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Accept & Enter Studio")
+            }
+        }
+    )
+}
+
+@Composable
+fun ReferAndEarnCard(viewModel: MainScreenViewModel) {
+    val context = LocalContext.current
+    val bonusDays = remember { mutableStateOf(viewModel.getReferralBonusDays()) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF6B21A8).copy(alpha = 0.15f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("🎁", fontSize = 22.sp)
+                    Column {
+                        Text(
+                            text = "Refer & Earn Pro (+7 Days)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFA855F7)
+                        )
+                        Text(
+                            text = if (bonusDays.value > 0) "You earned +${bonusDays.value} bonus VIP days!" else "Share with creators & extend VIP trial free",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFA855F7).copy(alpha = 0.2f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "+7 DAYS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA855F7)
+                    )
+                }
+            }
+
+            Text(
+                text = "Share Snap Loom on WhatsApp or Telegram with friends or creators. Instantly get +7 extra Pro days added to your VIP access!",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+            )
+
+            Button(
+                onClick = {
+                    try {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "🚀 Check out Snap Loom — Studio Screen & Reaction Recorder with AI Dual-Mic Noise Shield, 4K 60FPS recording, and Floating Facecam! Download it free: https://prince-portfolio-jade.vercel.app"
+                            )
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Snap Loom with Friends"))
+                        val newBonus = viewModel.awardReferralBonus()
+                        bonusDays.value = newBonus
+                        Toast.makeText(context, "🎉 +7 Days Pro Bonus added to your account!", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Unable to open share sheet", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFA855F7)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Share via WhatsApp / Telegram (+7 Days)",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
 }

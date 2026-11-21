@@ -209,11 +209,15 @@ class LicenseManager(private val context: Context) {
             return AppAccessState.Subscribed(planName, null, null) // Lifetime
         }
 
-        // 2. Check 3-Day Free VIP Trial: Uninterrupted access for 72 hours
+        // 2. Check 3-Day Free VIP Trial + Any Referral Bonus Days!
+        val bonusDays = try {
+            com.reactionstudio.screenrecorder.data.PreferencesManager.getInstance(context).getReferralBonusDays()
+        } catch (_: Exception) { 0 }
+        val totalTrialMs = THREE_DAYS_MS + (bonusDays * 24L * 60 * 60 * 1000L)
         val firstLaunch = getOrCreateFirstLaunchTime()
         val now = System.currentTimeMillis()
         val elapsed = now - firstLaunch
-        val remainingMs = THREE_DAYS_MS - elapsed
+        val remainingMs = totalTrialMs - elapsed
 
         if (remainingMs > 0) {
             val hours = (remainingMs / (1000 * 60 * 60)).toInt()

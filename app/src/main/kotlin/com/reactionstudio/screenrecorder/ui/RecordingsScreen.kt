@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -287,6 +290,8 @@ fun VideoItemCard(
     onTrimClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -339,7 +344,35 @@ fun VideoItemCard(
             }
 
             // Action Buttons
-            Row {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // 1-Click 9:16 Shorts Exporter
+                Button(
+                    onClick = {
+                        try {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "video/mp4"
+                                putExtra(Intent.EXTRA_STREAM, video.uri)
+                                putExtra(Intent.EXTRA_SUBJECT, video.name)
+                                putExtra(Intent.EXTRA_TEXT, "${video.name.removeSuffix(".mp4")} #Shorts #Reaction #SnapLoom")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Export to YouTube Shorts / Reels"))
+                            Toast.makeText(context, "Ready for YouTube Shorts & Reels (#Shorts tag attached)", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Unable to export video", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("📱 Shorts", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
                 IconButton(onClick = onTrimClick) {
                     Icon(
                         imageVector = Icons.Default.ContentCut,

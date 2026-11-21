@@ -207,6 +207,42 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
         prefsManager.updateConfig(config.value.copy(enableStudioHdAudio = enabled))
     }
 
+    fun updateMicVolumeGain(gain: Float) {
+        prefsManager.updateConfig(config.value.copy(micVolumeGain = gain))
+    }
+
+    fun updateEnableTeleprompter(enabled: Boolean) {
+        prefsManager.updateConfig(config.value.copy(enableTeleprompter = enabled))
+    }
+
+    fun updateEnableWatermark(enabled: Boolean) {
+        prefsManager.updateConfig(config.value.copy(enableCustomWatermark = enabled))
+    }
+
+    fun updateWatermarkText(text: String) {
+        prefsManager.updateConfig(config.value.copy(customWatermarkText = text))
+    }
+
+    fun updateGhostMode(enabled: Boolean) {
+        prefsManager.updateConfig(config.value.copy(ghostMode = enabled))
+    }
+
+    fun hasAcceptedTerms(): Boolean {
+        return prefsManager.hasAcceptedTerms()
+    }
+
+    fun acceptTerms() {
+        prefsManager.setTermsAccepted(true)
+    }
+
+    fun awardReferralBonus(): Int {
+        return prefsManager.addReferralBonusDays(7)
+    }
+
+    fun getReferralBonusDays(): Int {
+        return prefsManager.getReferralBonusDays()
+    }
+
     fun toggleFacecamPreview(context: Context) {
         if (!PermissionHelper.hasOverlayPermission(context) || !PermissionHelper.hasCameraPermission(context)) {
             return

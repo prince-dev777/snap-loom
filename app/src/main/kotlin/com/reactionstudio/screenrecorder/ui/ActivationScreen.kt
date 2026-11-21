@@ -36,6 +36,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import com.reactionstudio.screenrecorder.utils.ContactHelper
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -328,24 +329,8 @@ fun ActivationScreen(
 }
 
 private fun openTelegramContact(context: Context) {
-    val message = "Hello Prince, my 3-day trial ended and I want to activate Snap Loom Pro!"
-    val encodedMessage = Uri.encode(message)
-    val tgAppUri = Uri.parse("tg://resolve?domain=atheist_09&text=$encodedMessage")
-    val tgWebUri = Uri.parse("https://t.me/atheist_09?text=$encodedMessage")
-
-    val appIntent = Intent(Intent.ACTION_VIEW, tgAppUri).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    try {
-        context.startActivity(appIntent)
-    } catch (e: Exception) {
-        val webIntent = Intent(Intent.ACTION_VIEW, tgWebUri).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try {
-            context.startActivity(webIntent)
-        } catch (e2: Exception) {
-            Toast.makeText(context, "Contact on Telegram: @atheist_09", Toast.LENGTH_SHORT).show()
-        }
-    }
+    ContactHelper.openTelegram(
+        context = context,
+        message = "Hello Prince, my 3-day trial ended and I want to activate Snap Loom Pro!"
+    )
 }

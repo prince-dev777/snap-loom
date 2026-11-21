@@ -244,11 +244,13 @@ class ScreenRecordService : LifecycleService() {
     }
 
     private fun initOverlays() {
-        if (currentConfig.enableFacecam) {
-            showFacecam()
-        }
-        if (currentConfig.showFloatingControls) {
-            controlsManager?.showControls()
+        if (com.reactionstudio.screenrecorder.utils.PermissionHelper.hasOverlayPermission(this)) {
+            if (currentConfig.enableFacecam) {
+                showFacecam()
+            }
+            if (currentConfig.showFloatingControls) {
+                controlsManager?.showControls()
+            }
         }
     }
 

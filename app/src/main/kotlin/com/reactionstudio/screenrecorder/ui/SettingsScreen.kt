@@ -34,12 +34,14 @@ import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import android.widget.Toast
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +64,7 @@ import androidx.compose.foundation.layout.size
 import com.reactionstudio.screenrecorder.utils.AppUpdateManager
 import com.reactionstudio.screenrecorder.utils.LicenseManager
 import com.reactionstudio.screenrecorder.utils.AppAccessState
+import com.reactionstudio.screenrecorder.utils.ContactHelper
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -392,7 +395,27 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                 var isSyncing by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
 
+                // Primary Buy Pro / Contact Prince on Telegram
                 Button(
+                    onClick = {
+                        scope.launch {
+                            licenseManager.requestDeviceActivation()
+                        }
+                        ContactHelper.openTelegram(
+                            context,
+                            "Hello Prince! I am using Snap Loom Screen Recorder and I want to purchase Pro access."
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Buy Pro / Chat on Telegram (@atheist_09)", fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
                     onClick = {
                         scope.launch {
                             isSyncing = true
@@ -403,21 +426,53 @@ fun SettingsScreen(viewModel: MainScreenViewModel) {
                         }
                     },
                     enabled = !isSyncing,
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     if (isSyncing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Connecting...")
                     } else {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send / Sync Request to Admin Portal")
+                        Text("Sync Status with Admin Portal")
                     }
+                }
+            }
+        }
+
+        // Developer Support & Inquiry Section
+        SettingsCard(
+            title = "Help & Direct Support",
+            icon = Icons.Default.Send,
+            subtitle = "Official Telegram: @atheist_09"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Have questions, feedback, or want to buy Pro license directly? You can directly chat with Prince on Telegram.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Button(
+                    onClick = {
+                        ContactHelper.openTelegram(
+                            context,
+                            "Hello Prince! I need support / have an inquiry regarding Snap Loom."
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Chat with Prince on Telegram", fontWeight = FontWeight.Bold)
                 }
             }
         }

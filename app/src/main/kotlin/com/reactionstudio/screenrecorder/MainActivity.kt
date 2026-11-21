@@ -139,14 +139,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startScreenCaptureRequest() {
-        if (!PermissionHelper.hasCameraPermission(this) || !PermissionHelper.hasAudioPermission(this)) {
+        if (!PermissionHelper.hasAudioPermission(this)) {
             requestAppPermissions()
             return
         }
 
+        // Overlay is OPTIONAL. Screen recording works 100% with Notification Controls!
         if (!PermissionHelper.hasOverlayPermission(this)) {
-            openOverlaySettings()
-            return
+            Toast.makeText(
+                this,
+                "Screen Recording started! Use notification bar to pause/stop.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager

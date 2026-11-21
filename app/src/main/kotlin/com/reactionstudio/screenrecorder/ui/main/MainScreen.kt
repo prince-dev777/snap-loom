@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -79,6 +80,7 @@ import com.reactionstudio.screenrecorder.ui.RecordingsScreen
 import com.reactionstudio.screenrecorder.ui.SettingsScreen
 import com.reactionstudio.screenrecorder.utils.AppAccessState
 import com.reactionstudio.screenrecorder.utils.AppUpdateManager
+import com.reactionstudio.screenrecorder.utils.ContactHelper
 import com.reactionstudio.screenrecorder.utils.LicenseManager
 import com.reactionstudio.screenrecorder.utils.PermissionHelper
 
@@ -394,8 +396,11 @@ fun StudioHomeTab(
             }
         }
 
-        // Permissions Warning Banner if any are missing
-        if (!allPermissionsGranted) {
+        // Essential permissions check (Audio + Notification)
+        val essentialPermissionsGranted = hasAudio && hasNotification
+
+        // Permissions Warning Banner: Only show red banner if essential audio/mic/notification is missing
+        if (!essentialPermissionsGranted) {
             PermissionsBanner(
                 hasOverlay = hasOverlay,
                 hasCamera = hasCamera,
@@ -405,23 +410,22 @@ fun StudioHomeTab(
                 onOpenOverlaySettings = onOpenOverlaySettings,
                 onOpenRestrictedGuide = { showRestrictedSettingsDialog = true }
             )
+        } else if (!hasOverlay) {
+            // Non-blocking tip for optional Floating Facecam & Brush
+            OptionalOverlayTipBanner(
+                onOpenGuide = { showRestrictedSettingsDialog = true },
+                onStartDirectly = onStartRecordingClick
+            )
         }
 
-        // Hero Recording Status Card
+        // Hero Recording Status Card - NEVER BLOCKS RECORDING FOR OVERLAY!
         HeroRecordingCard(
             recordingState = recordingState,
             config = config,
             onStartClick = {
-                if (!allPermissionsGranted) {
-                    if (!hasOverlay) {
-                        if (PermissionHelper.isRestrictedSettingsLikely()) {
-                            showRestrictedSettingsDialog = true
-                        } else {
-                            onOpenOverlaySettings()
-                        }
-                    } else {
-                        onRequestPermissions()
-                    }
+                val needRuntime = !hasAudio || !hasNotification || (config.enableFacecam && !hasCamera)
+                if (needRuntime) {
+                    onRequestPermissions()
                 } else {
                     onStartRecordingClick()
                 }
@@ -858,6 +862,62 @@ fun HeroRecordingCard(
 }
 
 @Composable
+fun OptionalOverlayTipBanner(
+    onOpenGuide: () -> Unit,
+    onStartDirectly: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("💡", fontSize = 16.sp)
+                Text(
+                    text = "Floating Facecam & Pen (Optional)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = "Screen recording 100% chalegi! Agar screen par floating Facecam bubble ya live pen chahiye, toh 10 second me unblock karein.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedButton(
+                    onClick = onOpenGuide,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Unlock Guide (10s)", fontSize = 12.sp)
+                }
+                Button(
+                    onClick = onStartDirectly,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Record Now ⏺️", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun PermissionsBanner(
     hasOverlay: Boolean,
     hasCamera: Boolean,
@@ -953,43 +1013,79 @@ fun VipTimerBadge(context: Context) {
                 ),
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = "⏳", fontSize = 22.sp)
-                        Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(text = "⏳", fontSize = 22.sp)
+                            Column {
+                                Text(
+                                    text = "3-Day Free VIP Trial Active",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "${accessState.daysRemaining} days left (${accessState.hoursRemaining} hours remaining)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
                             Text(
-                                text = "3-Day Free VIP Trial Active",
-                                style = MaterialTheme.typography.titleSmall,
+                                text = "PRO FREE",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Text(
-                                text = "${accessState.daysRemaining} days left (${accessState.hoursRemaining} hours remaining)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
-                    Box(
+
+                    // Direct Telegram / Buy Pro Action Button
+                    Button(
+                        onClick = {
+                            ContactHelper.openTelegram(
+                                context,
+                                "Hello Prince! I am currently using the 3-day trial of Snap Loom and would like to buy Pro access."
+                            )
+                        },
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2563EB)
+                        )
                     ) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "PRO FREE",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            "Buy Pro / Chat on Telegram (@atheist_09)",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -1041,6 +1137,79 @@ fun VipTimerBadge(context: Context) {
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF10B981)
+                        )
+                    }
+                }
+            }
+        }
+        is AppAccessState.PendingApproval -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFEAB308).copy(alpha = 0.15f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEAB308).copy(alpha = 0.6f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(text = "⏳", fontSize = 22.sp)
+                            Column {
+                                Text(
+                                    text = "Activation Pending Approval",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEAB308)
+                                )
+                                Text(
+                                    text = "Waiting for Prince to approve in Admin Dashboard",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            ContactHelper.openTelegram(
+                                context,
+                                "Hello Prince! I requested activation for Snap Loom and am waiting for approval."
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2563EB)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Remind Prince on Telegram (@atheist_09)",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

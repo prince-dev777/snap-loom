@@ -90,7 +90,8 @@ class FacecamOverlayManager(
             WindowManager.LayoutParams.WRAP_CONTENT,
             windowType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -113,13 +114,15 @@ class FacecamOverlayManager(
         }
         previewContainer = container
 
-        // Camera PreviewView
+        // Camera PreviewView - CRITICAL: Must use COMPATIBLE (TextureView) mode so MediaProjection captures the camera!
+        // Default PERFORMANCE mode uses SurfaceView which renders to a hardware overlay plane and is NOT captured by MediaProjection VirtualDisplay.
         val pView = PreviewView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
             scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
         previewView = pView
         container.addView(pView)

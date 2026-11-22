@@ -1077,35 +1077,52 @@ fun VipTimerBadge(context: Context) {
                         }
                     }
 
-                    // Direct Telegram / Buy Pro Action Button
-                    Button(
-                        onClick = {
-                            ContactHelper.openTelegram(
-                                context,
-                                "Hello Prince! I am currently using the 3-day trial of Snap Loom and would like to buy Pro access."
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2563EB)
-                        )
+                    // 1-Click UPI & Telegram Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Buy Pro / Chat on Telegram (@atheist_09)",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Button(
+                            onClick = {
+                                ContactHelper.openUpiPayment(context, "99")
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981)
+                            )
+                        ) {
+                            Text(
+                                "⚡ Pay ₹99 UPI",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                ContactHelper.openTelegram(
+                                    context,
+                                    "Hello Prince! I am currently using the 3-day trial of Snap Loom and would like to buy Pro access."
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2563EB)
+                            )
+                        ) {
+                            Text(
+                                "Chat Telegram",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

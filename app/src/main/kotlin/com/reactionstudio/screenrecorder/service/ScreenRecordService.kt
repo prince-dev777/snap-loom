@@ -471,6 +471,42 @@ class ScreenRecordService : LifecycleService() {
                     val sec = currentDuration / 1000
                     val text = String.format("%02d:%02d", sec / 60, sec % 60)
                     updateNotification("Recording: $text")
+
+                    // Storage & Battery Crash-Guard: Safely stop before file corruption
+                    if (sec % 5 == 0L) {
+                        try {
+                            val stat = android.os.StatFs(android.os.Environment.getExternalStorageDirectory().path)
+                            val bytesAvailable = stat.availableBlocksLong * stat.blockSizeLong
+                            val mbAvailable = bytesAvailable / (1024 * 1024)
+                            if (mbAvailable < 200) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    android.widget.Toast.makeText(
+                                        this@ScreenRecordService,
+                                        "⚠️ Low Storage (<200MB): Video saved safely to prevent corruption!",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                stopRecording()
+                                break
+                            }
+
+                            val batteryStatus = registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                            val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                            val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+                            val batteryPct = if (level >= 0 && scale > 0) (level * 100 / scale) else 100
+                            if (batteryPct <= 3) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    android.widget.Toast.makeText(
+                                        this@ScreenRecordService,
+                                        "⚠️ Critical Battery (<=3%): Video saved safely!",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                stopRecording()
+                                break
+                            }
+                        } catch (_: Exception) {}
+                    }
                 }
             }
         }

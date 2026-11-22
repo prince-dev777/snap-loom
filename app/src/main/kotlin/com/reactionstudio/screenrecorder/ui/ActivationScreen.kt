@@ -228,6 +228,24 @@ fun ActivationScreen(
                     }
                 }
 
+                // 1-Click Instant UPI Payment
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            licenseManager.requestDeviceActivation()
+                            accessState = licenseManager.getAppAccessState()
+                        }
+                        ContactHelper.openUpiPayment(context, "99")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("⚡ Pay ₹99 via UPI (Instant GPay/PhonePe)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
                 // Telegram Chat Button
                 OutlinedButton(
                     onClick = { openTelegramContact(context) },
@@ -242,7 +260,25 @@ fun ActivationScreen(
                     Text("Chat with Prince (@atheist_09)", color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
                 }
             } else {
-                // 1-Click Request & Contact Prince on Telegram
+                // 1-Click Instant UPI Payment
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            licenseManager.requestDeviceActivation()
+                            accessState = licenseManager.getAppAccessState()
+                        }
+                        ContactHelper.openUpiPayment(context, "99")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("⚡ Pay ₹99 via UPI (Instant GPay/PhonePe)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+
+                // Contact Prince on Telegram
                 Button(
                     onClick = {
                         coroutineScope.launch {
@@ -253,7 +289,7 @@ fun ActivationScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
+                        .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
                 ) {

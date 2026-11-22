@@ -59,6 +59,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -1457,62 +1458,61 @@ fun ReferAndEarnCard(viewModel: MainScreenViewModel) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF6B21A8).copy(alpha = 0.15f)
+            containerColor = Color(0xFF6B21A8).copy(alpha = 0.12f)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.35f))
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("🎁", fontSize = 22.sp)
-                    Column {
+                Text("🎁", fontSize = 24.sp)
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
-                            text = "Refer & Earn Pro (+7 Days)",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Refer & Earn",
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFA855F7)
                         )
-                        Text(
-                            text = if (bonusDays.value > 0) "You earned +${bonusDays.value} bonus VIP days!" else "Share with creators & extend VIP trial free",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFA855F7).copy(alpha = 0.2f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "+7 DAYS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFA855F7)
+                            )
+                        }
                     }
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFA855F7).copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
                     Text(
-                        text = "+7 DAYS",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFA855F7)
+                        text = if (bonusDays.value > 0) "Earned +${bonusDays.value} bonus days!" else "Share with creators & extend VIP trial free",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Text(
-                text = "Share Snap Loom on WhatsApp or Telegram with friends or creators. Instantly get +7 extra Pro days added to your VIP access!",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
-            )
+            Spacer(modifier = Modifier.width(8.dp))
 
             Button(
                 onClick = {
@@ -1521,21 +1521,20 @@ fun ReferAndEarnCard(viewModel: MainScreenViewModel) {
                             type = "text/plain"
                             putExtra(
                                 Intent.EXTRA_TEXT,
-                                "🚀 Check out Snap Loom — Studio Screen & Reaction Recorder with AI Dual-Mic Noise Shield, 4K 60FPS recording, and Floating Facecam! Download it free: https://prince-portfolio-jade.vercel.app"
+                                "Check out Snap Loom — Studio Screen & Reaction Recorder with Facecam & High Quality Audio! Download: https://github.com/prince-dev777/snap-loom/releases"
                             )
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Snap Loom with Friends"))
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Snap Loom"))
                         val newBonus = viewModel.awardReferralBonus()
                         bonusDays.value = newBonus
-                        Toast.makeText(context, "🎉 +7 Days Pro Bonus added to your account!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "🎉 +7 Days Pro Bonus added!", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Unable to open share sheet", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Unable to share", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
-                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.height(34.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFA855F7)
                 )
@@ -1544,13 +1543,13 @@ fun ReferAndEarnCard(viewModel: MainScreenViewModel) {
                     imageVector = Icons.Default.Share,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Share via WhatsApp / Telegram (+7 Days)",
+                    text = "Share",
                     color = Color.White,
-                    style = MaterialTheme.typography.labelMedium,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }

@@ -368,26 +368,18 @@ class ScreenRecordService : LifecycleService() {
 
         try {
             if (shouldRecordAudio) {
-                val audioSource = if (currentConfig.enableNoiseShield) {
-                    // Triggers secondary noise-canceling mic & hardware Qualcomm/MediaTek DSP noise reduction
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && currentConfig.audioMode == com.reactionstudio.screenrecorder.model.AudioSourceMode.INTERNAL) {
-                        MediaRecorder.AudioSource.VOICE_RECOGNITION
-                    } else {
-                        MediaRecorder.AudioSource.VOICE_COMMUNICATION
-                    }
-                } else {
-                    if (currentConfig.audioMode == com.reactionstudio.screenrecorder.model.AudioSourceMode.INTERNAL &&
-                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                    ) {
-                        MediaRecorder.AudioSource.VOICE_RECOGNITION
-                    } else {
-                        MediaRecorder.AudioSource.MIC
-                    }
-                }
+                // Optimal Audio Source for Reaction & Screen Recording:
+                // CAMCORDER uses multi-mic array tuned for video recording.
+                // It does NOT mute background media (Reels/YouTube) and does NOT
+                // apply VoIP acoustic echo cancellation that deletes speaker sound.
                 try {
-                    recorder.setAudioSource(audioSource)
+                    recorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
                 } catch (_: Exception) {
-                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                    try {
+                        recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                    } catch (_: Exception) {
+                        recorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+                    }
                 }
             }
             recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
@@ -396,7 +388,15 @@ class ScreenRecordService : LifecycleService() {
             recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             if (shouldRecordAudio) {
                 recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                val audioBitrate = if (currentConfig.enableStudioHdAudio) 256_000 else 128_000
+                // Attempt stereo channels for rich spatial sound (speaker + voice)
+                try {
+                    recorder.setAudioChannels(2)
+                } catch (_: Exception) {
+                    try {
+                        recorder.setAudioChannels(1)
+                    } catch (_: Exception) {}
+                }
+                val audioBitrate = if (currentConfig.enableStudioHdAudio) 256_000 else 160_000
                 val samplingRate = if (currentConfig.enableStudioHdAudio) 48_000 else 44_100
                 recorder.setAudioEncodingBitRate(audioBitrate)
                 recorder.setAudioSamplingRate(samplingRate)

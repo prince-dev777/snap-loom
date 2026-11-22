@@ -1,0 +1,33 @@
+======================================================================
+SNAP LOOM - BUG TRACKER & RESOLUTION LOG (TODO.txt)
+======================================================================
+
+[FIXED] BUG-001: Audio Muting during Reels / Reaction Video Recording
+- Severity: Critical
+- Symptom: When recording screen while watching Instagram Reels or videos, neither the creator's voice nor the Reels audio was recorded (video was silent or media audio was cancelled).
+- Root Cause: ScreenRecordService used MediaRecorder.AudioSource.VOICE_COMMUNICATION (VoIP phone call mode) and VOICE_RECOGNITION. This triggered Android's telephony audio policy which ducked/muted background media playback (Instagram Reels) and DSP Acoustic Echo Cancellation (AEC) aggressively removed phone speaker audio as "echo".
+- Resolution: Switched to MediaRecorder.AudioSource.CAMCORDER with fallback to MIC. CAMCORDER is specifically engineered for video capture, does not duck other media apps, and disables VoIP echo suppression so both speaker sound (Reels) and voice are recorded. Added stereo (2 channels) and 48kHz studio audio.
+
+[FIXED] BUG-002: Video Title Squeezed Vertically in Recordings Screen
+- Severity: High (UI/UX)
+- Symptom: Video file names (e.g., "Reaction_20261122_231500.mp4") appeared as a long vertical column of individual letters.
+- Root Cause: In RecordingsScreen.kt, the video title Column(weight(1f)) was crammed into the same horizontal Row alongside 4 action buttons (Shorts button + 3 icon buttons = ~235dp) and a thumbnail. On standard mobile screens (<380dp), the title had less than 35dp width, causing extreme vertical word-wrapping.
+- Resolution: Redesigned VideoItemCard into a clean 2-row layout. Row 1 allocates full available width for the title with TextOverflow.Ellipsis and maxLines=1. Row 2 holds a neat, compact action bar.
+
+[FIXED] BUG-003: Recordings Card Bloated & Missing Layout Switcher
+- Severity: Medium (UI/UX)
+- Symptom: Recording cards occupied too much vertical space and users could not toggle between list and grid views.
+- Resolution: Reduced card padding, made list items compact (~68dp), and added an interactive View Mode Switcher icon (GridView / ViewList) in the top bar to toggle between Compact List and 2-Column Grid views.
+
+[FIXED] BUG-004: Refer & Earn Card Overly Large with Unwanted Text
+- Severity: Medium (UI/UX)
+- Symptom: Refer & Earn card was excessively tall (~180dp) with redundant paragraphs and duplicate badges taking up vertical screen space.
+- Resolution: Streamlined ReferAndEarnCard in MainScreen.kt into a sleek, modern compact banner (~56dp) with concise 1-line text and a clean Share button.
+
+[FIXED] BUG-005: AudioSourceMode Display Clarity
+- Severity: Low
+- Resolution: Clarified AudioSourceMode display names in RecordingConfig.kt to "Microphone (Voice)", "Reels Sound + Voice", and "Mute Audio".
+
+======================================================================
+STATUS: All 5 bugs resolved in parallel for Release v1.7.2.
+======================================================================

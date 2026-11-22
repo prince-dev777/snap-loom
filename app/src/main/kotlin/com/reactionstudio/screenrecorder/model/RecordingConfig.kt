@@ -43,8 +43,8 @@ enum class CountdownOption(val seconds: Int, val displayName: String) {
 }
 
 enum class AudioSourceMode(val displayName: String) {
-    MIC("Microphone"),
-    INTERNAL("Internal Sound"),
+    MIC("Microphone (Voice)"),
+    INTERNAL("Reels Sound + Voice"),
     MUTE("Mute Audio")
 }
 

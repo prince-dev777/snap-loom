@@ -39,6 +39,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -47,9 +48,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -156,13 +160,6 @@ class MainActivity : ComponentActivity() {
                         // MANDATORY BLOCKING UPDATE: User must update to get the latest features before entering
                         MandatoryUpdateScreen(
                             update = updateInfo!!,
-                            onUpdateNow = {
-                                AppUpdateManager.startDownload(
-                                    this,
-                                    updateInfo!!.apkDownloadUrl,
-                                    updateInfo!!.latestVersion
-                                )
-                            },
                             onExitApp = { finishAffinity() }
                         )
                     } else if (!isAccessGranted) {
@@ -214,10 +211,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MandatoryUpdateScreen(
     update: UpdateInfo,
-    onUpdateNow: () -> Unit,
     onExitApp: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableFloatStateOf(0f) }
+    var downloadedMb by remember { mutableFloatStateOf(0f) }
+    var totalMb by remember { mutableFloatStateOf(21.8f) }
+    var downloadStatusText by remember { mutableStateOf("Ready to update") }
 
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
@@ -291,7 +293,7 @@ fun MandatoryUpdateScreen(
                     )
 
                     Text(
-                        text = if (update.releaseNotes.isNotBlank()) update.releaseNotes else "• AI Dual-Mic Noise Shield & Studio Audio\n• Floating Teleprompter for Creators\n• 1-Click 9:16 YouTube Shorts Exporter\n• Direct UPI Payments & Instant Auto-Restart",
+                        text = if (update.releaseNotes.isNotBlank()) update.releaseNotes else "• Facecam Screen Recording Fix (100% captured)\n• High-Speed 10x Fast OTA Downloader\n• Floating Teleprompter for Creators\n• 1-Click 9:16 YouTube Shorts Exporter",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFFE2E8F0)
                     )
@@ -300,10 +302,67 @@ fun MandatoryUpdateScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Real-time High-speed Progress Bar
+            if (isDownloading) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    LinearProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFF6366F1),
+                        trackColor = Color(0xFF334155)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${(downloadProgress * 100).toInt()}%",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = String.format("%.1f MB / %.1f MB", downloadedMb, totalMb),
+                            color = Color(0xFF94A3B8),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
+
             Button(
                 onClick = {
                     isDownloading = true
-                    onUpdateNow()
+                    downloadStatusText = "Connecting to high-speed stream..."
+                    coroutineScope.launch {
+                        AppUpdateManager.downloadUpdateFast(
+                            context = context,
+                            downloadUrl = update.apkDownloadUrl,
+                            version = update.latestVersion,
+                            onProgress = { p, dMb, tMb ->
+                                downloadProgress = p
+                                downloadedMb = dMb
+                                totalMb = tMb
+                                downloadStatusText = "Downloading: ${(p * 100).toInt()}%"
+                            },
+                            onFinished = { file ->
+                                downloadStatusText = "Complete! Opening package installer..."
+                                AppUpdateManager.installApk(context, file)
+                                isDownloading = false
+                            },
+                            onError = { _ ->
+                                // Fallback to DownloadManager
+                                AppUpdateManager.startDownload(context, update.apkDownloadUrl, update.latestVersion)
+                                isDownloading = false
+                            }
+                        )
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -321,11 +380,11 @@ fun MandatoryUpdateScreen(
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Downloading... Installer Opening", fontWeight = FontWeight.Bold)
+                    Text(downloadStatusText, fontWeight = FontWeight.Bold)
                 } else {
                     Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Update Now (Fast OTA)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Update Now (Fast 10x OTA)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 

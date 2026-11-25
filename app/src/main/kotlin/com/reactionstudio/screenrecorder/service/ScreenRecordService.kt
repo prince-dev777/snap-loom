@@ -368,17 +368,15 @@ class ScreenRecordService : LifecycleService() {
 
         try {
             if (shouldRecordAudio) {
-                // Optimal Audio Source for Reaction & Screen Recording:
-                // CAMCORDER uses multi-mic array tuned for video recording.
-                // It does NOT mute background media (Reels/YouTube) and does NOT
-                // apply VoIP acoustic echo cancellation that deletes speaker sound.
+                // Primary near-field microphone (MIC) avoids far-field AGC hissing and
+                // chassis tap vibrations caused by CAMCORDER's rear mic.
                 try {
-                    recorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
                 } catch (_: Exception) {
                     try {
-                        recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-                    } catch (_: Exception) {
                         recorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+                    } catch (_: Exception) {
+                        recorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
                     }
                 }
             }
@@ -388,15 +386,16 @@ class ScreenRecordService : LifecycleService() {
             recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             if (shouldRecordAudio) {
                 recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                // Attempt stereo channels for rich spatial sound (speaker + voice)
+                // Mono (1 channel) isolates the high-SNR primary bottom mic with acoustic damper,
+                // completely eliminating the secondary top mic's chassis hiss & screen tap pickup!
                 try {
-                    recorder.setAudioChannels(2)
+                    recorder.setAudioChannels(1)
                 } catch (_: Exception) {
                     try {
-                        recorder.setAudioChannels(1)
+                        recorder.setAudioChannels(2)
                     } catch (_: Exception) {}
                 }
-                val audioBitrate = if (currentConfig.enableStudioHdAudio) 256_000 else 160_000
+                val audioBitrate = if (currentConfig.enableStudioHdAudio) 192_000 else 128_000
                 val samplingRate = if (currentConfig.enableStudioHdAudio) 48_000 else 44_100
                 recorder.setAudioEncodingBitRate(audioBitrate)
                 recorder.setAudioSamplingRate(samplingRate)

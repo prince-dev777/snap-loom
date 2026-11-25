@@ -7,13 +7,13 @@ import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.camera.core.CameraSelector
@@ -40,6 +40,13 @@ class FacecamOverlayManager(
     private var previewContainer: FrameLayout? = null
     private var previewView: PreviewView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
+    private var borderView: View? = null
+    private var fullScreenBtn: ImageView? = null
+    private var resizeBtn: ImageView? = null
+
+    private var isFullScreen = false
+    private var savedX = 0
+    private var savedY = 0
 
     private var currentLens: CameraLens = CameraLens.FRONT
     private var currentShape: FacecamShape = FacecamShape.CIRCLE
@@ -49,6 +56,7 @@ class FacecamOverlayManager(
     private var cameraProvider: ProcessCameraProvider? = null
 
     fun isShowing(): Boolean = rootView != null
+    fun isFullScreenActive(): Boolean = isFullScreen
 
     fun showFacecam(
         owner: LifecycleOwner,
@@ -115,7 +123,6 @@ class FacecamOverlayManager(
         previewContainer = container
 
         // Camera PreviewView - CRITICAL: Must use COMPATIBLE (TextureView) mode so MediaProjection captures the camera!
-        // Default PERFORMANCE mode uses SurfaceView which renders to a hardware overlay plane and is NOT captured by MediaProjection VirtualDisplay.
         val pView = PreviewView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -130,22 +137,23 @@ class FacecamOverlayManager(
         applyShapeToContainer(container, currentShape)
 
         // Overlay Border frame
-        val borderView = View(context).apply {
+        val border = View(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
             background = getBorderDrawable(currentShape)
         }
-        container.addView(borderView)
+        borderView = border
+        container.addView(border)
 
-        // Mini action bar below or on top of camera (Flip, Resize, Close)
+        // Mini action bar below or on top of camera (Flip, Fullscreen, Resize, Close)
         val actionToolbar = createActionToolbar()
         container.addView(actionToolbar)
 
         root.addView(container)
 
-        // Drag & Touch handling
+        // Drag & Double-Tap handling on both root and container for maximum responsiveness
         setupDragTouchListener(root)
 
         try {
@@ -170,11 +178,7 @@ class FacecamOverlayManager(
 
     fun updateBorderColor(color: FacecamBorderColor) {
         currentBorderColor = color
-        previewContainer?.let { container ->
-            if (container.childCount > 1) {
-                container.getChildAt(1).background = getBorderDrawable(currentShape)
-            }
-        }
+        borderView?.background = getBorderDrawable(currentShape)
     }
 
     private fun applyShapeToContainer(container: FrameLayout, shape: FacecamShape) {
@@ -194,11 +198,11 @@ class FacecamOverlayManager(
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#80000000")) // Semi-transparent dark
+            setBackgroundColor(Color.parseColor("#99000000")) // Semi-transparent sleek dark
 
             val lp = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(28)
+                dpToPx(30)
             ).apply {
                 gravity = Gravity.BOTTOM
             }
@@ -208,7 +212,7 @@ class FacecamOverlayManager(
             val flipBtn = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_menu_rotate)
                 setColorFilter(Color.WHITE)
-                val pad = dpToPx(4)
+                val pad = dpToPx(5)
                 setPadding(pad, pad, pad, pad)
                 val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
                 layoutParams = p
@@ -218,11 +222,26 @@ class FacecamOverlayManager(
             }
             addView(flipBtn)
 
+            // Fullscreen Toggle button (Double tap shortcut)
+            val fsBtn = ImageView(context).apply {
+                setImageResource(android.R.drawable.ic_menu_zoom)
+                setColorFilter(Color.WHITE)
+                val pad = dpToPx(5)
+                setPadding(pad, pad, pad, pad)
+                val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                layoutParams = p
+                setOnClickListener {
+                    toggleFullScreen()
+                }
+            }
+            fullScreenBtn = fsBtn
+            addView(fsBtn)
+
             // Resize button
-            val resizeBtn = ImageView(context).apply {
+            val resBtn = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_menu_crop)
                 setColorFilter(Color.WHITE)
-                val pad = dpToPx(4)
+                val pad = dpToPx(5)
                 setPadding(pad, pad, pad, pad)
                 val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
                 layoutParams = p
@@ -230,13 +249,14 @@ class FacecamOverlayManager(
                     cycleSize()
                 }
             }
-            addView(resizeBtn)
+            resizeBtn = resBtn
+            addView(resBtn)
 
             // Close button
             val closeBtn = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
                 setColorFilter(Color.WHITE)
-                val pad = dpToPx(4)
+                val pad = dpToPx(5)
                 setPadding(pad, pad, pad, pad)
                 val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
                 layoutParams = p
@@ -250,6 +270,7 @@ class FacecamOverlayManager(
     }
 
     private fun cycleSize() {
+        if (isFullScreen) return
         val newSize = when (currentSize) {
             FacecamSize.SMALL -> FacecamSize.MEDIUM
             FacecamSize.MEDIUM -> FacecamSize.LARGE
@@ -260,6 +281,7 @@ class FacecamOverlayManager(
 
     fun updateSize(size: FacecamSize) {
         currentSize = size
+        if (isFullScreen) return
         val pxSize = dpToPx(size.sizeDp)
         previewContainer?.let { container ->
             val lp = container.layoutParams as FrameLayout.LayoutParams
@@ -281,12 +303,92 @@ class FacecamOverlayManager(
 
     fun updateShape(shape: FacecamShape) {
         currentShape = shape
+        if (isFullScreen) return
         previewContainer?.let { container ->
             applyShapeToContainer(container, shape)
             container.invalidateOutline()
-            if (container.childCount > 1) {
-                container.getChildAt(1).background = getBorderDrawable(shape)
-            }
+            borderView?.background = getBorderDrawable(shape)
+        }
+    }
+
+    /**
+     * Toggles between Floating Camera Bubble and Full Screen Camera with zero lag.
+     * Can be invoked via Double Tap or the action bar Fullscreen button.
+     */
+    fun toggleFullScreen() {
+        if (isFullScreen) {
+            exitFullScreen()
+        } else {
+            enterFullScreen()
+        }
+    }
+
+    fun enterFullScreen() {
+        val lp = layoutParams ?: return
+        val root = rootView ?: return
+        val container = previewContainer ?: return
+
+        isFullScreen = true
+        savedX = lp.x
+        savedY = lp.y
+
+        // Set WindowManager to cover the entire display edge-to-edge
+        lp.x = 0
+        lp.y = 0
+        lp.width = WindowManager.LayoutParams.MATCH_PARENT
+        lp.height = WindowManager.LayoutParams.MATCH_PARENT
+
+        // Expand container to match screen
+        val containerLp = container.layoutParams as FrameLayout.LayoutParams
+        containerLp.width = FrameLayout.LayoutParams.MATCH_PARENT
+        containerLp.height = FrameLayout.LayoutParams.MATCH_PARENT
+        container.layoutParams = containerLp
+
+        // Remove rounded/circular clipping in full screen
+        container.clipToOutline = false
+        borderView?.visibility = View.GONE
+        resizeBtn?.visibility = View.GONE
+        fullScreenBtn?.setColorFilter(Color.parseColor("#FFD700")) // Golden glow active
+
+        try {
+            windowManager.updateViewLayout(root, lp)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun exitFullScreen() {
+        val lp = layoutParams ?: return
+        val root = rootView ?: return
+        val container = previewContainer ?: return
+
+        isFullScreen = false
+        val pxSize = dpToPx(currentSize.sizeDp)
+
+        // Restore window position and wrap_content bounds
+        lp.x = savedX
+        lp.y = savedY
+        lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+        lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+
+        // Restore container bubble size
+        val containerLp = container.layoutParams as FrameLayout.LayoutParams
+        containerLp.width = pxSize
+        containerLp.height = pxSize
+        container.layoutParams = containerLp
+
+        // Reapply shape clipping & border
+        applyShapeToContainer(container, currentShape)
+        container.invalidateOutline()
+        borderView?.visibility = View.VISIBLE
+        borderView?.background = getBorderDrawable(currentShape)
+        resizeBtn?.visibility = View.VISIBLE
+        fullScreenBtn?.setColorFilter(Color.WHITE)
+
+        try {
+            windowManager.updateViewLayout(root, lp)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -298,7 +400,24 @@ class FacecamOverlayManager(
         var initialTouchY = 0f
         var isMoving = false
 
+        val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                toggleFullScreen()
+                return true
+            }
+        })
+
         view.setOnTouchListener { _, event ->
+            // Pass to gesture detector for instant double tap recognition
+            gestureDetector.onTouchEvent(event)
+
+            // When in full screen, dragging is locked so camera stays rock-solid
+            if (isFullScreen) {
+                return@setOnTouchListener true
+            }
+
             val lp = layoutParams ?: return@setOnTouchListener false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -312,15 +431,15 @@ class FacecamOverlayManager(
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
-                    if (abs(deltaX) > 10 || abs(deltaY) > 10) {
+                    if (abs(deltaX) > 8 || abs(deltaY) > 8) {
                         isMoving = true
-                    }
-                    lp.x = initialX + deltaX
-                    lp.y = initialY + deltaY
-                    try {
-                        windowManager.updateViewLayout(view, lp)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
+                        lp.x = initialX + deltaX
+                        lp.y = initialY + deltaY
+                        try {
+                            windowManager.updateViewLayout(view, lp)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                     true
                 }
@@ -384,7 +503,11 @@ class FacecamOverlayManager(
         rootView = null
         previewContainer = null
         previewView = null
+        borderView = null
+        fullScreenBtn = null
+        resizeBtn = null
         layoutParams = null
         lifecycleOwner = null
+        isFullScreen = false
     }
 }

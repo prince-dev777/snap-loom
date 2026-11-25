@@ -6,7 +6,7 @@ SNAP LOOM - BUG TRACKER & RESOLUTION LOG (TODO.txt)
 - Severity: Critical
 - Symptom: When recording screen while watching Instagram Reels or videos, neither the creator's voice nor the Reels audio was recorded (video was silent or media audio was cancelled).
 - Root Cause: ScreenRecordService used MediaRecorder.AudioSource.VOICE_COMMUNICATION (VoIP phone call mode) and VOICE_RECOGNITION. This triggered Android's telephony audio policy which ducked/muted background media playback (Instagram Reels) and DSP Acoustic Echo Cancellation (AEC) aggressively removed phone speaker audio as "echo".
-- Resolution: Switched to MediaRecorder.AudioSource.CAMCORDER with fallback to MIC. CAMCORDER is specifically engineered for video capture, does not duck other media apps, and disables VoIP echo suppression so both speaker sound (Reels) and voice are recorded. Added stereo (2 channels) and 48kHz studio audio.
+- Resolution: Switched to MediaRecorder.AudioSource.CAMCORDER with fallback to MIC. Added stereo and 48kHz audio.
 
 [FIXED] BUG-002: Video Title Squeezed Vertically in Recordings Screen
 - Severity: High (UI/UX)
@@ -28,6 +28,17 @@ SNAP LOOM - BUG TRACKER & RESOLUTION LOG (TODO.txt)
 - Severity: Low
 - Resolution: Clarified AudioSourceMode display names in RecordingConfig.kt to "Microphone (Voice)", "Reels Sound + Voice", and "Mute Audio".
 
+[FIXED] BUG-006: Background Noise, Static Hiss & Screen Tap Vibration in Recordings
+- Severity: High (Audio Quality)
+- Symptom: When recording in quiet rooms, video had continuous static hiss / white noise. Tapping the phone screen caused loud thumping vibrations in the audio track.
+- Root Cause: AudioSource.CAMCORDER activates far-field high AGC (+30dB gain) and uses the top/rear auxiliary microphone which is coupled to the phone chassis and glass screen. In silence, the AGC pushes preamp hiss to maximum, and screen taps conduct directly into the top mic.
+- Resolution: Switched primary audio source to AudioSource.MIC with single-channel (Mono) recording. AudioSource.MIC targets the primary bottom microphone which has an acoustic rubber suspension damper that isolates chassis screen-tap vibrations and avoids far-field AGC hissing.
+
+[ADDED] FEATURE-001: Double Tap to Fullscreen Facecam & Seamless Resize Control
+- Severity: Feature Request
+- Requirement: Double tapping the floating facecam expands it to Full Screen edge-to-edge; double tapping again returns it to the actual floating bubble size and position with zero lag.
+- Implementation: Integrated GestureDetector into FacecamOverlayManager with SimpleOnGestureListener detecting onDoubleTap. Added toggleFullScreen(), enterFullScreen(), and exitFullScreen(). Sized to MATCH_PARENT without restarting CameraX streams for instant 60 FPS transitions. Added a Fullscreen icon button in the action toolbar.
+
 ======================================================================
-STATUS: All 5 bugs resolved in parallel for Release v1.7.2.
+STATUS: All issues resolved for Release v1.7.3.
 ======================================================================
